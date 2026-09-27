@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
   try {
     if (p.action === "lookup") {
       // Proxy de metadatos públicos (portadas, títulos) para servicios que no permiten CORS.
-      const LOOKUP_HOSTS = ["itunes.apple.com", "openlibrary.org", "noembed.com", "api.artic.edu"];
+      const LOOKUP_HOSTS = ["itunes.apple.com", "openlibrary.org", "noembed.com", "api.artic.edu", "openaccess-api.clevelandart.org"];
       let u: URL;
       try {
         u = new URL((p as unknown as { url: string }).url);

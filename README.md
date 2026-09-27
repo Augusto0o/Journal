@@ -58,9 +58,9 @@ Está como tarjeta en **Hoy** (tocala para abrir la sección) y también se encu
 
 - **Barra inferior:** tres pestañas — **Hoy**, **Cuaderno** y **Biblioteca** —, la **lupa** y el botón **+** de captura rápida.
 - **Hoy:** la semana (deslizá para cambiar), las tareas del día, lo hecho y lo sin fecha plegados, hábitos, journal, inglés, foco, frase y obra del día. Los recordatorios ahora son **tareas con alarma** (campana): se agendan en iOS vía Atajos. La agenda es la tira de la semana.
-- **Cuaderno:** una sola lista por mes con journal, notas, ideas, enlaces, mapas y PDFs. Sin filtros: se busca escribiendo. El **+** elige el tipo (incluye «Mapa de un texto» e importar PDF). Carpetas y Archivo, al pie.
+- **Cuaderno:** una sola lista por mes con journal, notas, ideas, enlaces, mapas y PDFs. Sin filtros: se busca escribiendo. Deslizá una nota a la izquierda para **anclar, archivar o eliminar** (un deslizamiento largo elimina, con confirmación). El **+** elige el tipo (incluye «Mapa de un texto» e importar PDF). Carpetas y Archivo, al pie.
 - **Biblioteca:** un estante ordenado por estado (Leyendo, Para leer, Para ver, Para escuchar; lo terminado plegado), más Descubrir (música, libros y temas) y la Obra del día.
-- **Lupa · Buscar o preguntar:** busca en tu contenido, lleva a cualquier sección o función (escribí «pdf», «grafo», «contraseña») y le pregunta a la IA con lo que escribiste. Sin nada escrito muestra el índice de todo.
+- **Lupa · Buscar o preguntar:** busca solo en tu contenido y le pregunta a la IA. Las secciones no están ahí: cada una vive en su pestaña (Hábitos, Inglés, Foco y Frase en Hoy; Mapas, PDFs y Grafo en Cuaderno; Descubrir y Obra del día en Biblioteca; Contraseñas en Ajustes).
 - **Ajustes:** una sola pantalla con secciones plegables (Apariencia, Hoy, General, IA, Sincronización, Atajos, Datos). Se abre con el ícono de arriba a la derecha en Hoy.
 - **Lector:** píldora «Índice · %» con los títulos del texto, y **Aa** abre el panel de lectura: tema, voz, texto (fuentes y tipografía), buscar, y deslizadores de tamaño y brillo.
 - **IA contextual:** al seleccionar texto en el editor aparece «Preguntar a la IA» con resumir, explicar, corregir, reformular, traducir, mapa mental, mapa conceptual, diagrama de sistema, flujo y crear tarea. Se puede comparar el original con la versión nueva.
@@ -79,7 +79,7 @@ Está como tarjeta en **Hoy** (tocala para abrir la sección) y también se encu
 | Videos | Enlaces de YouTube y playlists, con portada, título y canal automáticos. Categorías: Ver más tarde, Aprender, Entretenimiento, Ideas |
 | Música | Canciones, discos, artistas y playlists con portada y vista previa de 30 s (iTunes). Se abren en YouTube Music. Solo se guardan enlaces y metadatos |
 | Descubrir música / Para vos | Recomendaciones con IA que aprenden de lo que guardás, marcás como favorito, descartás o escuchás repetido |
-| Obra del día | Obras de dominio público del Art Institute of Chicago, con historia, contexto y favoritas |
+| Obra del día | Obras de dominio público del Cleveland Museum of Art, con historia y contexto traducidos al español, y favoritas |
 | Grafo de conocimiento | Conexiones automáticas por enlaces, etiquetas y temas en común, navegables |
 | Asistente IA | Chat que opera sobre tu contenido: resumir, crear tareas o recordatorios, buscar, armar mapas, traducir |
 
