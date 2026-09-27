@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BottomSheet, Empty, Icon, IconButton, type IconName } from '@/components/ui';
 import { AddBook, AddLink, Cover, MediaDetail, SearchMusic } from './library/MediaTabs';
 import { useArtwork } from '@/pages/discover/Artwork';
 import { useStore, useToday } from '@/hooks/useData';
+import { TopSearch } from '@/components/navigation/TopSearch';
 import type { MediaItem } from '@/types';
 import { cx } from '@/utils/misc';
 
-type Adding = null | 'pick' | 'book' | 'video' | 'music' | 'music-link';
+type Adding = null | 'pick' | 'book' | 'video' | 'music' | 'music-link' | 'movie';
 
 const DONE = new Set(['finished', 'watched', 'listened', 'liked', 'saved']);
 
@@ -22,11 +23,14 @@ export default function Library() {
   const [open, setOpen] = useState<MediaItem | null>(null);
   const [showDone, setShowDone] = useState(false);
   const { art } = useArtwork(today);
+  const navigate = useNavigate();
+  const openItem = (m: MediaItem) => (m.mediaType === 'movie' ? navigate(`/peliculas?id=${m.id}`) : setOpen(m));
 
   const media = snap.media.filter((m) => m.status !== 'dismissed').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const reading = media.filter((m) => m.mediaType === 'book' && m.status === 'reading');
   const toRead = media.filter((m) => m.mediaType === 'book' && m.status === 'want');
   const toWatch = media.filter((m) => m.mediaType === 'video' && !DONE.has(m.status));
+  const moviesToWatch = media.filter((m) => m.mediaType === 'movie' && !DONE.has(m.status));
   const toListen = media.filter((m) => m.mediaType === 'music' && !DONE.has(m.status));
   const done = media.filter((m) => DONE.has(m.status));
 
@@ -34,6 +38,7 @@ export default function Library() {
     { title: 'Leyendo', items: reading },
     { title: 'Para leer', items: toRead },
     { title: 'Para ver', items: toWatch },
+    { title: 'Películas para ver', items: moviesToWatch },
     { title: 'Para escuchar', items: toListen },
   ];
 
@@ -41,6 +46,7 @@ export default function Library() {
 
   return (
     <main className="page library">
+      <TopSearch />
       <header className="today-head">
         <h1 className="today-title grow">Biblioteca</h1>
         <IconButton icon="plus" label="Agregar" tone="filled" onClick={() => setAdding('pick')} />
@@ -50,7 +56,12 @@ export default function Library() {
         <Link to="/descubrir" className="explore-card">
           <span className="explore-icon"><Icon name="sparkle" size={20} /></span>
           <span className="card-kicker">Descubrir</span>
-          <span className="card-title">Música, libros y temas para vos</span>
+          <span className="card-title">Música y libros</span>
+        </Link>
+        <Link to="/peliculas" className="explore-card">
+          <span className="explore-icon"><Icon name="video" size={20} /></span>
+          <span className="card-kicker">Películas</span>
+          <span className="card-title">Tu diario</span>
         </Link>
         <Link to="/arte" className={cx('explore-card', art && 'has-art')}>
           {art && <img src={art.thumb} alt="" loading="lazy" />}
@@ -67,7 +78,7 @@ export default function Library() {
         <section key={s.title} className="block">
           <div className="block-head"><h2>{s.title}</h2><span className="num">{s.items.length}</span></div>
           <ul className="shelf">
-            {s.items.map((m) => <ShelfItem key={m.id} m={m} onOpen={setOpen} />)}
+            {s.items.map((m) => <ShelfItem key={m.id} m={m} onOpen={openItem} />)}
           </ul>
         </section>
       ))}
@@ -78,19 +89,20 @@ export default function Library() {
             <span>Terminado y favoritos · {done.length}</span>
             <Icon name={showDone ? 'chevronUp' : 'chevronDown'} size={16} />
           </button>
-          {showDone && <ul className="shelf">{done.map((m) => <ShelfItem key={m.id} m={m} onOpen={setOpen} />)}</ul>}
+          {showDone && <ul className="shelf">{done.map((m) => <ShelfItem key={m.id} m={m} onOpen={openItem} />)}</ul>}
         </>
       )}
 
       <BottomSheet open={!!adding} onClose={() => setAdding(null)} title={sheetTitle} hideTitle={adding === 'pick'} initialFocus={adding === 'pick' ? 'none' : undefined}>
         {adding === 'pick' && (
-          <div className="new-grid is-3">
+          <div className="new-grid is-4">
             {([
               ['book', 'Libro', 'book'],
               ['video', 'Video', 'video'],
               ['music', 'Música', 'music'],
+              ['video', 'Película', 'movie'],
             ] as [IconName, string, Adding][]).map(([icon, label, next]) => (
-              <button key={label} type="button" className="new-tile" onClick={() => setAdding(next)}>
+              <button key={label} type="button" className="new-tile" onClick={() => (next === 'movie' ? navigate('/peliculas') : setAdding(next))}>
                 <span className="new-tile-icon"><Icon name={icon} size={22} /></span>
                 <span>{label}</span>
               </button>
@@ -116,7 +128,7 @@ export default function Library() {
 }
 
 function ShelfItem({ m, onOpen }: { m: MediaItem; onOpen: (m: MediaItem) => void }) {
-  const kind = m.mediaType === 'book' ? 'book' : m.mediaType === 'video' ? 'video' : 'music';
+  const kind = m.mediaType === 'book' ? 'book' : m.mediaType === 'video' ? 'video' : m.mediaType === 'movie' ? 'movie' : 'music';
   return (
     <li>
       <button type="button" className="media-item" onClick={() => onOpen(m)}>
@@ -124,6 +136,7 @@ function ShelfItem({ m, onOpen }: { m: MediaItem; onOpen: (m: MediaItem) => void
         <span className="grow">
           <span className="media-title">{m.title}</span>
           <span className="row-sub">{[m.creator, m.category && m.mediaType !== 'book' ? m.category : m.genre].filter(Boolean).join(' · ')}</span>
+          {m.mediaType === 'movie' && m.rating ? <span className="shelf-stars">{'★'.repeat(Math.floor(m.rating))}{m.rating % 1 ? '½' : ''}</span> : null}
           {m.mediaType === 'book' && m.status === 'reading' && (
             <span className="media-progress"><i style={{ transform: `scaleX(${(m.progress ?? 0) / 100})` }} /></span>
           )}

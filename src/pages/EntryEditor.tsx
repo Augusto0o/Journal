@@ -21,7 +21,7 @@ import { cx, resizeImage, shareOrDownload } from '@/utils/misc';
 
 type Doc = JournalEntry | Note;
 
-const EMPTY_FORMATS: ActiveFormats = { bold: false, italic: false, underline: false, ul: false, ol: false, checklist: false, h2: false, quote: false, link: false };
+const EMPTY_FORMATS: ActiveFormats = { bold: false, italic: false, underline: false, ul: false, ol: false, checklist: false, h2: false, quote: false, link: false, table: false, block: 'p' };
 
 function resolve(kind: 'journal' | 'note', id: string, params: URLSearchParams): Doc {
   if (kind === 'journal') {
@@ -40,6 +40,7 @@ export default function EntryEditor({ kind }: { kind: 'journal' | 'note' }) {
   const goBack = useGoBack('/cuaderno');
   const snap = useStore();
   const { toast, confirm } = useFeedback();
+  const [history, setHistory] = useState({ undo: false, redo: false });
 
   const initial = useMemo(() => resolve(kind, id, params), []); // eslint-disable-line react-hooks/exhaustive-deps
   const doc = useRef<Doc>(initial);
@@ -167,6 +168,12 @@ export default function EntryEditor({ kind }: { kind: 'journal' | 'note' }) {
             title={<span className="navbar-state">{stateLabel}</span>}
             end={
               <>
+                <button type="button" className="icon-btn" aria-label="Deshacer" disabled={!history.undo} onPointerDown={(e) => e.preventDefault()} onClick={() => editor.current?.undo()}>
+                  <Icon name="undo" size={20} />
+                </button>
+                <button type="button" className="icon-btn" aria-label="Rehacer" disabled={!history.redo} onPointerDown={(e) => e.preventDefault()} onClick={() => editor.current?.redo()}>
+                  <Icon name="redo" size={20} />
+                </button>
                 <button type="button" className="icon-btn" aria-label="Leer" onClick={async () => { await autosave.flush(); if (store.raw(doc.current.id)) navigate(`${kind === 'journal' ? '/journal' : '/biblioteca/nota'}/${doc.current.id}/leer`); }}>
                   <Icon name="book" size={21} />
                 </button>
@@ -222,6 +229,7 @@ export default function EntryEditor({ kind }: { kind: 'journal' | 'note' }) {
               onChange={(html) => update({ content: html })}
               onFormats={setFormats}
               onFocusChange={setFocused}
+              onHistory={setHistory}
               scrollContainer={scroller}
               className="prose"
               placeholder={meta.kind === 'journal' ? 'Escribí lo que quieras…' : 'Empezá a escribir…'}
@@ -281,7 +289,7 @@ export default function EntryEditor({ kind }: { kind: 'journal' | 'note' }) {
             <SheetAction icon={<Icon name="globe" size={20} />} label="Practicar este día en inglés" onClick={async () => { await autosave.flush(); navigate(`/ingles/diario?entrada=${doc.current.id}`); }} />
           )}
           <SheetAction icon={<Icon name="sparkle" size={20} />} label="Preguntar al asistente sobre esto" onClick={async () => { await autosave.flush(); navigate(`/asistente?ctx=${doc.current.id}`); }} />
-          <SheetAction icon={<Icon name="link2" size={20} />} label="Vincular con…" hint="libro, PDF, nota" onClick={() => setSheet('connect')} />
+          <SheetAction icon={<Icon name="link" size={20} />} label="Vincular con…" hint="libro, PDF, nota" onClick={() => setSheet('connect')} />
         </div>
         {meta.kind === 'note' && (
           <>

@@ -5,37 +5,49 @@ import { useHome, useSettings, useSync } from '@/hooks/useData';
 import { relativeTime } from '@/utils/date';
 import { cx } from '@/utils/misc';
 import type { HomeModule } from '@/types';
+import { TODAY_BLOCKS, todayOrder } from '@/services/prefs';
 import Appearance from './Appearance';
 import General from './General';
 import AI from './AI';
 import Sync from './Sync';
 import Shortcuts from './Shortcuts';
 import Data from './Data';
-
-const TODAY_BLOCKS: { id: HomeModule; label: string }[] = [
-  { id: 'habits', label: 'Hábitos' },
-  { id: 'journal', label: 'Journal del día' },
-  { id: 'english', label: 'Inglés' },
-  { id: 'pomodoro', label: 'Foco' },
-  { id: 'quote', label: 'Frase del día' },
-  { id: 'artwork', label: 'Obra del día' },
-];
+import Notifications from './Notifications';
+import YouTubeSettings from './YouTube';
+import { ytCached } from '@/services/youtube';
+import { pushEnabled } from '@/services/push';
 
 function TodaySettings() {
   const [home, setHome] = useHome();
+  const order = todayOrder(home);
   const on = (id: HomeModule) => home.modules.find((m) => m.id === id)?.enabled ?? true;
-  const toggle = (id: HomeModule, v: boolean) => {
-    const has = home.modules.some((m) => m.id === id);
-    void setHome({ ...home, modules: has ? home.modules.map((m) => (m.id === id ? { ...m, enabled: v } : m)) : [...home.modules, { id, enabled: v }] });
+  const label = (id: HomeModule) => TODAY_BLOCKS.find((b) => b.id === id)?.label ?? id;
+  const save = (ids: HomeModule[], patch?: { id: HomeModule; enabled: boolean }) => {
+    // Los bloques de Hoy van primero, en el orden elegido; el resto de módulos se conserva detrás.
+    const rest = home.modules.filter((m) => !ids.includes(m.id));
+    const modules = [
+      ...ids.map((id) => ({ id, enabled: patch?.id === id ? patch.enabled : on(id) })),
+      ...rest,
+    ];
+    void setHome({ ...home, adaptive: false, modules });
+  };
+  const move = (i: number, d: number) => {
+    const j = i + d;
+    if (j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j], next[i]];
+    save(next);
   };
   return (
     <div className="settings-part">
-      <p className="group-foot">Las tareas y la semana siempre están. Elegí qué más aparece debajo.</p>
-      <div className="group-body mt-2">
-        {TODAY_BLOCKS.map((b) => (
-          <div key={b.id} className="row">
-            <span className="row-main"><span className="row-label">{b.label}</span></span>
-            <Switch label={b.label} checked={on(b.id)} onChange={(v) => toggle(b.id, v)} />
+      <p className="group-foot">Las tareas y la semana siempre van arriba. Elegí qué bloques mostrar debajo y en qué orden.</p>
+      <div className="group-body mt-2 order-list">
+        {order.map((id, i) => (
+          <div key={id} className="row order-row">
+            <span className="row-main"><span className="row-label">{label(id)}</span></span>
+            <button type="button" className="order-btn" aria-label={`Subir ${label(id)}`} disabled={i === 0} onClick={() => move(i, -1)}><Icon name="chevronUp" size={18} /></button>
+            <button type="button" className="order-btn" aria-label={`Bajar ${label(id)}`} disabled={i === order.length - 1} onClick={() => move(i, 1)}><Icon name="chevronDown" size={18} /></button>
+            <Switch label={label(id)} checked={on(id)} onChange={(v) => save(order, { id, enabled: v })} />
           </div>
         ))}
       </div>
@@ -65,10 +77,12 @@ export default function Settings() {
 
   const parts: { id: string; icon: IconName; label: string; sub: string; el: React.ReactNode }[] = [
     { id: 'apariencia', icon: 'palette', label: 'Apariencia', sub: 'Tema, color y letra', el: <Appearance embedded /> },
-    { id: 'hoy', icon: 'sun', label: 'Hoy', sub: 'Qué bloques mostrar', el: <TodaySettings /> },
+    { id: 'hoy', icon: 'sun', label: 'Hoy', sub: 'Qué bloques mostrar y en qué orden', el: <TodaySettings /> },
     { id: 'general', icon: 'settings', label: 'General', sub: settings.userName ? `Hola, ${settings.userName}` : 'Nombre, semana y fechas', el: <General embedded /> },
     { id: 'ia', icon: 'sparkle', label: 'IA', sub: settings.aiEnabled ? 'Activa' : 'Apagada', el: <AI embedded /> },
     { id: 'sync', icon: 'cloud', label: 'Sincronización', sub: syncSub, el: <Sync embedded /> },
+    { id: 'avisos', icon: 'bell', label: 'Notificaciones', sub: pushEnabled() ? 'Activadas' : 'Avisos con la app cerrada', el: <Notifications /> },
+    { id: 'youtube', icon: 'music', label: 'YouTube Music', sub: ytCached()?.playlist ? `Lista: ${ytCached()!.playlist!.title}` : 'Agregar canciones a tu lista', el: <YouTubeSettings /> },
     { id: 'atajos', icon: 'bolt', label: 'Atajos de iOS', sub: 'Siri, Compartir y alarmas', el: <Shortcuts embedded /> },
     { id: 'datos', icon: 'database', label: 'Datos y copias', sub: settings.lastBackupAt ? `Última copia ${relativeTime(settings.lastBackupAt)}` : 'Exportar e importar', el: <Data embedded /> },
   ];

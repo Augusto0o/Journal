@@ -11,7 +11,8 @@ import { normalize } from '@/utils/html';
 export function RelatedPanel({ id, onLink }: { id: string; onLink?: () => void }) {
   const snap = useStore();
   const rel = useMemo(() => related(snap, id, 6), [snap, id]);
-  if (!rel.length && !onLink) return null;
+  // Sin conexiones no se muestra nada (vincular está en el menú de opciones).
+  if (!rel.length) return null;
   return (
     <section className="related">
       <div className="spread">
@@ -30,9 +31,7 @@ export function RelatedPanel({ id, onLink }: { id: string; onLink?: () => void }
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="row-sub">Todavía nada conectado. Vinculalo a un libro, un PDF u otra nota.</p>
-      )}
+      ) : null}
     </section>
   );
 }

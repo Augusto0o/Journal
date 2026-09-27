@@ -2,7 +2,10 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 
 import { sanitizeHtml } from '@/utils/html';
 import { cx } from '@/utils/misc';
 
+export type BlockTag = 'h1' | 'h2' | 'h3' | 'p' | 'pre' | 'blockquote';
+
 export interface ActiveFormats {
+  block: BlockTag;
   bold: boolean;
   italic: boolean;
   underline: boolean;
@@ -12,6 +15,7 @@ export interface ActiveFormats {
   h2: boolean;
   quote: boolean;
   link: boolean;
+  table: boolean;
 }
 
 export interface RichEditorHandle {
@@ -19,14 +23,19 @@ export interface RichEditorHandle {
   exec: (command: string, value?: string) => void;
   toggleChecklist: () => void;
   toggleBlock: (tag: 'h2' | 'blockquote') => void;
+  setBlock: (tag: BlockTag) => void;
   insertLink: (url: string, text?: string) => void;
   insertImage: (src: string) => void;
   addTableRow: () => boolean;
+  deleteTableRow: () => boolean;
+  deleteTable: () => boolean;
   replaceSelection: (html: string) => void;
   appendHtml: (html: string) => void;
   getSelectedText: () => string;
   getLinkAtSelection: () => string | null;
   root: () => HTMLDivElement | null;
+  undo: () => void;
+  redo: () => void;
 }
 
 interface RichEditorProps {
@@ -37,16 +46,18 @@ interface RichEditorProps {
   placeholder?: string;
   scrollContainer?: React.RefObject<HTMLElement>;
   className?: string;
+  /** Avisa si hay pasos para deshacer / rehacer. */
+  onHistory?: (h: { undo: boolean; redo: boolean }) => void;
 }
 
-const EMPTY_FORMATS: ActiveFormats = { bold: false, italic: false, underline: false, ul: false, ol: false, checklist: false, h2: false, quote: false, link: false };
+const EMPTY_FORMATS: ActiveFormats = { bold: false, italic: false, underline: false, ul: false, ol: false, checklist: false, h2: false, quote: false, link: false, table: false, block: 'p' };
 
 /**
  * Editor de texto enriquecido basado en contentEditable.
  * Es no-controlado: el HTML inicial se fija una vez y los cambios se emiten con onChange.
  */
 export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(function RichEditor(
-  { initialHtml, onChange, onFormats, onFocusChange, placeholder, scrollContainer, className },
+  { initialHtml, onChange, onFormats, onFocusChange, placeholder, scrollContainer, className, onHistory },
   ref,
 ) {
   const el = useRef<HTMLDivElement>(null);
@@ -63,15 +74,55 @@ export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(function
     root.classList.toggle('is-empty', empty);
   }, []);
 
+  // Historial propio (deshacer / rehacer): funciona también con checklists, imágenes y cambios de la IA,
+  // que el deshacer nativo de iOS pierde. Las pulsaciones seguidas se agrupan en un solo paso.
+  const hist = useRef({ past: [] as string[], future: [] as string[], cur: '', at: 0 });
+  const onHistoryRef = useRef(onHistory);
+  onHistoryRef.current = onHistory;
+  const reportHistory = () => onHistoryRef.current?.({ undo: hist.current.past.length > 0, redo: hist.current.future.length > 0 });
+
   const emit = useCallback(() => {
     updateEmpty();
-    onChangeRef.current(el.current?.innerHTML ?? '');
+    const html = el.current?.innerHTML ?? '';
+    const h = hist.current;
+    if (html !== h.cur) {
+      const now = Date.now();
+      if (now - h.at > 700 || !h.past.length) {
+        h.past.push(h.cur);
+        if (h.past.length > 150) h.past.shift();
+      }
+      h.at = now;
+      h.cur = html;
+      h.future = [];
+      reportHistory();
+    }
+    onChangeRef.current(html);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateEmpty]);
+
+  const applyHistory = (html: string) => {
+    const root = el.current;
+    if (!root) return;
+    root.innerHTML = html;
+    hist.current.cur = html;
+    hist.current.at = 0;
+    updateEmpty();
+    onChangeRef.current(html);
+    root.focus({ preventScroll: true });
+    const r = document.createRange();
+    r.selectNodeContents(root);
+    r.collapse(false);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(r);
+    reportHistory();
+  };
 
   // HTML inicial (una sola vez)
   useEffect(() => {
     if (!el.current) return;
     el.current.innerHTML = sanitizeHtml(initialHtml) || '';
+    hist.current.cur = el.current.innerHTML;
     updateEmpty();
     try {
       document.execCommand('defaultParagraphSeparator', false, 'p');
@@ -121,6 +172,8 @@ export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(function
       h2: !!node?.closest('h2'),
       quote: !!node?.closest('blockquote'),
       link: !!node?.closest('a'),
+      table: !!node?.closest('table'),
+      block: ((node?.closest('h1,h2,h3,pre,blockquote')?.tagName.toLowerCase() as BlockTag | undefined) ?? 'p'),
     };
   }, []);
 
@@ -147,10 +200,23 @@ export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(function
     return () => vv.removeEventListener('resize', h);
   }, [ensureCaretVisible]);
 
+  // Si el teclado está cerrado, aplicar un formato no debe abrirlo: se enfoca «en silencio»
+  // (inputmode=none) y el teclado vuelve recién cuando tocás el texto.
+  const silent = useRef(false);
   const restoreSelection = () => {
     const root = el.current;
     if (!root) return;
-    if (document.activeElement !== root) root.focus({ preventScroll: true });
+    if (document.activeElement !== root) {
+      root.setAttribute('inputmode', 'none');
+      silent.current = true;
+      root.focus({ preventScroll: true });
+      // Si igual apareció el teclado (algunas versiones de iOS ignoran inputmode), se cierra.
+      const h0 = window.innerHeight;
+      setTimeout(() => {
+        const vv = window.visualViewport;
+        if (silent.current && vv && vv.height < h0 * 0.8) root.blur();
+      }, 350);
+    }
     const sel = window.getSelection();
     if (lastRange.current && sel && root.contains(lastRange.current.startContainer)) {
       sel.removeAllRanges();
@@ -178,6 +244,20 @@ export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(function
 
   useImperativeHandle(ref, () => ({
     root: () => el.current,
+    undo: () => {
+      const h = hist.current;
+      const prev = h.past.pop();
+      if (prev === undefined) return;
+      h.future.push(h.cur);
+      applyHistory(prev);
+    },
+    redo: () => {
+      const h = hist.current;
+      const next = h.future.pop();
+      if (next === undefined) return;
+      h.past.push(h.cur);
+      applyHistory(next);
+    },
     focus: (atEnd = true) => {
       const root = el.current;
       if (!root) return;
@@ -200,6 +280,11 @@ export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(function
       restoreSelection();
       const inside = currentNode()?.closest(tag);
       document.execCommand('formatBlock', false, inside ? '<p>' : `<${tag}>`);
+      after();
+    },
+    setBlock: (tag) => {
+      restoreSelection();
+      document.execCommand('formatBlock', false, `<${tag}>`);
       after();
     },
     toggleChecklist: () => {
@@ -256,6 +341,41 @@ export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(function
       const body = tr.parentElement?.tagName === 'THEAD' ? tr.closest('table')?.querySelector('tbody') : null;
       if (body) body.insertBefore(row, body.firstChild);
       else tr.after(row);
+      after();
+      return true;
+    },
+    deleteTableRow: () => {
+      restoreSelection();
+      const tr = currentNode()?.closest('tr');
+      const table = tr?.closest('table');
+      if (!tr || !table || !el.current?.contains(tr)) return false;
+      const rows = table.querySelectorAll('tbody tr');
+      if (tr.parentElement?.tagName === 'THEAD' || rows.length <= 1) return false;
+      const next = (tr.nextElementSibling ?? tr.previousElementSibling) as HTMLElement | null;
+      tr.remove();
+      const cell = next?.querySelector('td');
+      if (cell) {
+        const r = document.createRange();
+        r.selectNodeContents(cell);
+        r.collapse(true);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(r);
+      }
+      after();
+      return true;
+    },
+    deleteTable: () => {
+      restoreSelection();
+      const table = currentNode()?.closest('table');
+      if (!table || !el.current?.contains(table)) return false;
+      const p = document.createElement('p');
+      p.innerHTML = '<br>';
+      table.replaceWith(p);
+      const r = document.createRange();
+      r.setStart(p, 0);
+      r.collapse(true);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(r);
       after();
       return true;
     },
@@ -329,10 +449,22 @@ export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(function
       onPaste={onPaste}
       onClick={onClick}
       onFocus={() => {
+        if (silent.current) return;
         onFocusChange?.(true);
         setTimeout(ensureCaretVisible, 250);
       }}
-      onBlur={() => onFocusChange?.(false)}
+      onBlur={() => {
+        el.current?.removeAttribute('inputmode');
+        silent.current = false;
+        onFocusChange?.(false);
+      }}
+      onPointerDown={() => {
+        // Tocar el texto después de un formato «silencioso»: ahora sí, teclado.
+        if (!silent.current) return;
+        silent.current = false;
+        el.current?.removeAttribute('inputmode');
+        el.current?.blur();
+      }}
       onKeyDown={(e) => {
         const mod = e.metaKey || e.ctrlKey;
         if (mod && e.key.toLowerCase() === 'k') {

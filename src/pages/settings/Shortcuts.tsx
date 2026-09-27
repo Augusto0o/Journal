@@ -84,7 +84,24 @@ export default function ShortcutsSettings({ embedded }: { embedded?: boolean } =
               <div className="token-reveal">
                 <p className="small">Copialo ahora: no se vuelve a mostrar.</p>
                 <code>{fresh}</code>
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => void copy(fresh, 'Token')}><Icon name="copy" size={16} /> Copiar</button>
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => void copy(fresh, 'Token')}><Icon name="copy" size={16} /> Copiar token</button>
+                {endpoint && (
+                  <>
+                    <p className="small mt-4">Más fácil: la <b>dirección con el token incluido</b>. Pegala en el atajo y no hace falta ningún encabezado.</p>
+                    <code>{`${endpoint}?token=${fresh}`}</code>
+                    <div className="hstack">
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => void copy(`${endpoint}?token=${fresh}`, 'Dirección')}><Icon name="copy" size={16} /> Copiar dirección</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={async () => {
+                        try {
+                          const r = await fetch(`${endpoint}?token=${fresh}`);
+                          toast(r.ok ? 'Funciona: el atajo va a poder guardar' : `Respondió ${r.status}: revisá el token`, { tone: r.ok ? undefined : 'error' });
+                        } catch {
+                          toast('No se pudo conectar con Supabase', { tone: 'error' });
+                        }
+                      }}>Probar</button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </>
@@ -93,15 +110,22 @@ export default function ShortcutsSettings({ embedded }: { embedded?: boolean } =
 
       <section className="group recipes">
         <h2 className="group-title"><span>Cómo armar cada atajo</span></h2>
+        <Recipe title="Guardar en Personal OS" when="Compartir desde YouTube, YouTube Music o cualquier app" open>
+          <li>Atajos → <b>+</b> → nombre «Guardar en Personal OS». En <b>ⓘ Detalles</b> activá <b>Mostrar en la hoja de Compartir</b> y en «Recibe» dejá solo <b>URL</b> y <b>Texto</b>.</li>
+          <li>Acción <b>Obtener contenido de URL</b>: pegá la <b>dirección con token</b> (la que termina en <code>?token=pos_…</code>). Método <b>POST</b>, <b>sin encabezados</b>. Cuerpo <b>JSON</b>: un campo de texto con clave <code>text</code> y valor <b>Entrada del atajo</b>.</li>
+          <li>Si agregaste encabezados, borrá las filas vacías: una fila «Clave / Texto» sin completar hace fallar el atajo con «La conexión de red se perdió».</li>
+          <li>Acción <b>Mostrar notificación</b> con el <b>Contenido de la URL</b>.</li>
+          <li>Listo: en YouTube tocá <b>Compartir → Más → Guardar en Personal OS</b>. Un video va a <b>Biblioteca · Para ver</b>, una canción o playlist de YouTube Music a <b>Para escuchar</b>, con título y portada. Otros enlaces y textos se ordenan solos.</li>
+        </Recipe>
         <Recipe title="POS Capturar" when="Siri, botón de Acción o pantalla bloqueada">
           <li>Atajos → <b>+</b> → nombre «POS Capturar».</li>
           <li>Acción <b>Pedir entrada</b> (Texto), pregunta «¿Qué anoto?».</li>
-          <li>Acción <b>Obtener contenido de URL</b>: la dirección de arriba, método <b>POST</b>, encabezado <code>Authorization</code> = <code>Bearer tu_token</code>, cuerpo <b>JSON</b> con clave <code>text</code> = Entrada proporcionada.</li>
+          <li>Acción <b>Obtener contenido de URL</b>: la dirección con token, método <b>POST</b>, sin encabezados, cuerpo <b>JSON</b> con clave <code>text</code> = Entrada proporcionada.</li>
           <li>Acción <b>Mostrar notificación</b> con el resultado.</li>
           <li>Opcional: en los detalles del atajo, activá «Mostrar en la hoja de Compartir» y usá la entrada del atajo en vez de «Pedir entrada» para mandar textos y enlaces desde cualquier app.</li>
         </Recipe>
         <Recipe title="POS Hoy" when="«Oye Siri, POS Hoy»">
-          <li>Acción <b>Obtener contenido de URL</b> con la misma dirección, método <b>GET</b> y el mismo encabezado.</li>
+          <li>Acción <b>Obtener contenido de URL</b> con la dirección con token, método <b>GET</b>.</li>
           <li>Acción <b>Leer texto</b> o <b>Mostrar resultado</b>.</li>
         </Recipe>
         <Recipe title={SHORTCUT_NAMES.reminder} when="Lo abre la app al guardar un recordatorio">
@@ -120,9 +144,9 @@ export default function ShortcutsSettings({ embedded }: { embedded?: boolean } =
   );
 }
 
-function Recipe({ title, when, children }: { title: string; when: string; children: React.ReactNode }) {
+function Recipe({ title, when, children, open }: { title: string; when: string; children: React.ReactNode; open?: boolean }) {
   return (
-    <details className="recipe surface-card">
+    <details className="recipe surface-card" open={open}>
       <summary>
         <span className="row-main"><span className="row-label">{title}</span><span className="row-sub">{when}</span></span>
         <Icon name="chevronDown" size={18} className="recipe-chev" />

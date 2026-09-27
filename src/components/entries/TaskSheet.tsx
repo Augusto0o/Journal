@@ -28,6 +28,8 @@ export function dueLabel(t: Pick<Task, 'dueDate' | 'dueTime'>) {
 
 export function TaskRow({ task, onOpen, showDate = true }: { task: Task; onOpen: (id: string) => void; showDate?: boolean }) {
   const overdue = isOverdue(task);
+  // Al completar: primero se ve el tilde y el tachado, después la fila se va.
+  const [leaving, setLeaving] = useState(false);
   const doneSubs = task.subtasks.filter((s) => s.isDone).length;
   const meta: React.ReactNode[] = [];
   if (showDate && (task.dueDate || task.dueTime)) meta.push(<span key="d" className={cx(overdue && 'is-overdue')}>{dueLabel(task)}</span>);
@@ -37,14 +39,19 @@ export function TaskRow({ task, onOpen, showDate = true }: { task: Task; onOpen:
   if (task.subtasks.length) meta.push(<span key="s">{doneSubs}/{task.subtasks.length}</span>);
   if (task.category) meta.push(<span key="c">#{task.category}</span>);
   return (
-    <div className={cx('row task-row has-icon', task.isDone && 'is-done')}>
+    <div className={cx('row task-row has-icon', (task.isDone || leaving) && 'is-done', leaving && 'is-leaving')}>
       <Check
-        checked={task.isDone}
+        checked={task.isDone || leaving}
         priority={task.priority}
         label={task.isDone ? `Marcar pendiente: ${task.title}` : `Completar: ${task.title}`}
         onChange={() => {
           haptic();
-          void toggleTask(task.id);
+          if (task.isDone || leaving) {
+            void toggleTask(task.id);
+            return;
+          }
+          setLeaving(true);
+          setTimeout(() => void toggleTask(task.id), 420);
         }}
       />
       <button type="button" className="task-main" onClick={() => onOpen(task.id)}>

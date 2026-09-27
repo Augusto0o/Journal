@@ -1,21 +1,20 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { cx } from '@/utils/misc';
 
 const TABS: { to: string; label: string; icon: IconName; match: (p: string) => boolean }[] = [
   { to: '/', label: 'Hoy', icon: 'sun', match: (p) => p === '/' || p.startsWith('/habitos') || p.startsWith('/ajustes') || p.startsWith('/contrasenas') || p.startsWith('/frases') || p.startsWith('/ingles') || p.startsWith('/pomodoro') },
   { to: '/cuaderno', label: 'Cuaderno', icon: 'journal', match: (p) => p.startsWith('/cuaderno') || p.startsWith('/journal') || p.startsWith('/mapas') || p.startsWith('/pdf') || p.startsWith('/grafo') },
-  { to: '/biblioteca', label: 'Biblioteca', icon: 'library', match: (p) => p.startsWith('/biblioteca') || p.startsWith('/descubrir') || p.startsWith('/arte') },
+  { to: '/biblioteca', label: 'Biblioteca', icon: 'library', match: (p) => p.startsWith('/biblioteca') || p.startsWith('/descubrir') || p.startsWith('/arte') || p.startsWith('/peliculas') },
 ];
 
 /**
- * Tres pestañas en una cápsula, más la búsqueda (que también pregunta a la IA)
- * y el botón de captura. El indicador activo se desliza entre pestañas.
+ * Tres pestañas en una cápsula y el botón de captura.
+ * La búsqueda vive arriba de cada pestaña (TopSearch). El indicador activo se desliza entre pestañas.
  */
 export function Dock({ onCapture, hidden }: { onCapture: () => void; hidden?: boolean }) {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const refs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [box, setBox] = useState<{ x: number; w: number } | null>(null);
   const active = TABS.findIndex((t) => t.match(pathname));
@@ -43,10 +42,7 @@ export function Dock({ onCapture, hidden }: { onCapture: () => void; hidden?: bo
           </NavLink>
         ))}
       </nav>
-      <button type="button" className={cx('capsule dock-round', pathname.startsWith('/buscar') && 'is-active')} onClick={() => navigate('/buscar')} aria-label="Buscar o preguntar">
-        <Icon name="search" size={21} />
-      </button>
-      <button type="button" className="dock-plus" onClick={onCapture} aria-label="Captura rápida">
+      <button type="button" className="dock-plus" onClick={onCapture} aria-label="Nuevo">
         <Icon name="plus" size={24} strokeWidth={2.2} />
       </button>
     </div>

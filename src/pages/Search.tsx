@@ -68,11 +68,14 @@ export default function Search() {
 
   return (
     <main className="page command">
+      <div className="command-top">
       <form className="command-bar" onSubmit={(e) => { e.preventDefault(); if (t && !hits.length && !problem) ask(); }}>
         <Icon name="search" size={19} />
         <input type="search" autoFocus placeholder="Buscar en lo tuyo o preguntar" value={q} onChange={(e) => { setQ(e.target.value); setAi(null); }} enterKeyHint="search" aria-label="Buscar o preguntar" />
         {q && <button type="button" className="command-clear" aria-label="Borrar" onClick={() => setQ('')}><Icon name="x" size={14} strokeWidth={2.4} /></button>}
       </form>
+      <button type="button" className="command-cancel" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}>Cancelar</button>
+      </div>
 
       {!t ? (
         <>
@@ -87,12 +90,20 @@ export default function Search() {
 
           {recent.length > 0 && (
             <section className="block">
-              <div className="block-head"><h2>Recientes</h2></div>
+              <div className="block-head">
+                <h2>Recientes</h2>
+                <button type="button" className="link-btn" onClick={() => void store.setPref('recentSearches', [])}>Borrar todo</button>
+              </div>
               <div className="list">
-                {recent.slice(0, 5).map((r) => (
-                  <button key={r} type="button" className="plain-row" onClick={() => setQ(r)}>
-                    <Icon name="clock" size={16} /><span className="grow">{r}</span>
-                  </button>
+                {recent.slice(0, 8).map((r) => (
+                  <div key={r} className="recent-row">
+                    <button type="button" className="plain-row grow" onClick={() => setQ(r)}>
+                      <Icon name="clock" size={16} /><span className="grow">{r}</span>
+                    </button>
+                    <button type="button" className="recent-x" aria-label={`Borrar «${r}»`} onClick={() => void store.setPref('recentSearches', recent.filter((x) => x !== r))}>
+                      <Icon name="x" size={15} />
+                    </button>
+                  </div>
                 ))}
               </div>
             </section>

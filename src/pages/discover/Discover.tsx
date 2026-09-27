@@ -1,8 +1,9 @@
+import { ytAutoAdd } from '@/services/youtube';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Empty, Icon, NavBar, useFeedback } from '@/components/ui';
 import { PreviewButton } from '@/pages/library/MediaTabs';
-import { ForYouSection } from './ForYou';
+import { ForYouSection, type RecKind } from './ForYou';
 import { useStore } from '@/hooks/useData';
 import { store } from '@/database/store';
 import { aiAvailable, recommend } from '@/services/ai';
@@ -23,6 +24,9 @@ export default function Discover() {
   const [busy, setBusy] = useState(false);
   const [handled, setHandled] = useState<Record<string, MediaStatus>>({});
   const [showGenres, setShowGenres] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const tab = params.get('tab') ?? 'music';
 
   const known = useMemo(() => new Set(snap.media.filter((m) => m.mediaType === 'music').map((m) => `${m.title}|${m.creator}`.toLowerCase())), [snap.media]);
   const hasTaste = genres.length > 0 || snap.media.some((m) => m.mediaType === 'music');
@@ -65,12 +69,14 @@ export default function Discover() {
   };
 
   useEffect(() => {
-    if (hasTaste && !recs) void load();
+    if (hasTaste && !recs && tab === 'music') void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasTaste]);
+  }, [hasTaste, tab]);
 
   const act = async (r: Rec, status: MediaStatus) => {
-    await saveMedia(newMedia('music', { title: r.title, creator: r.creator, cover: r.cover, genre: r.genre, previewUrl: r.previewUrl, url: r.url, category: r.category, year: r.year, status }));
+    const item = newMedia('music', { title: r.title, creator: r.creator, cover: r.cover, genre: r.genre, previewUrl: r.previewUrl, url: r.url, category: r.category, year: r.year, status });
+    await saveMedia(item);
+    if (status !== 'dismissed') ytAutoAdd(item, (msg) => toast(msg));
     setHandled((h) => ({ ...h, [`${r.title}|${r.creator}`]: status }));
     if (status !== 'dismissed') toast(status === 'liked' ? 'Guardada en favoritos' : 'Guardada en Para escuchar');
   };
@@ -78,6 +84,12 @@ export default function Discover() {
   return (
     <main className="page">
       <NavBar back="/biblioteca" backLabel="Biblioteca" title="Descubrir" />
+      <div className="seg-tabs" role="tablist" aria-label="Qué descubrir">
+        {([['music', 'Música'], ['books', 'Libros'], ['movies', 'Películas'], ['videos', 'Videos'], ['topics', 'Temas']] as const).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} className={cx('seg-tab', tab === id && 'is-on')} onClick={() => (id === 'movies' ? navigate('/peliculas') : setParams(id === 'music' ? {} : { tab: id }, { replace: true }))}>{label}</button>
+        ))}
+      </div>
+      {tab !== 'music' ? <ForYouSection key={tab} kind={tab as RecKind} /> : (<>
       <div className="cta-row mt-4">
         <p>{aiAvailable() ? 'Música que aprende de lo que guardás y descartás.' : 'Música según tus artistas y géneros.'}</p>
         <button type="button" className="cta" onClick={() => void load()} disabled={busy || !hasTaste}>{busy ? <span className="spinner" /> : 'Otra tanda'} <Icon name="arrowRight" size={22} strokeWidth={1.4} className="arrow" /></button>
@@ -130,7 +142,7 @@ export default function Discover() {
         </ul>
       )}
       <p className="group-foot mt-6">Vistas previas de 30 s vía iTunes. Para escuchar completo, abrí cada canción en YouTube Music desde la <Link to="/biblioteca">Biblioteca</Link>.</p>
-      <ForYouSection />
+      </>)}
     </main>
   );
 }

@@ -11,12 +11,14 @@ import { newNote, saveNote } from '@/services/actions';
 import type { MediaItem, MediaStatus } from '@/types';
 import { relativeTime } from '@/utils/date';
 import { cx } from '@/utils/misc';
+import { ytAdd, ytAutoAdd, ytCached, ytReady } from '@/services/youtube';
+import { claimPlayback, isReleasing, releaseMedia } from '@/services/player';
 
-export function Cover({ src, kind, alt }: { src?: string | null; kind: 'book' | 'video' | 'music'; alt: string }) {
+export function Cover({ src, kind, alt }: { src?: string | null; kind: 'book' | 'video' | 'music' | 'movie'; alt: string }) {
   const [ok, setOk] = useState(true);
   return (
     <span className={cx('cover', `is-${kind}`)}>
-      {src && ok ? <img src={src} alt={alt} loading="lazy" onError={() => setOk(false)} /> : <Icon name={kind === 'book' ? 'book' : kind === 'video' ? 'video' : 'music'} size={20} />}
+      {src && ok ? <img src={src} alt={alt} loading="lazy" onError={() => setOk(false)} /> : <Icon name={kind === 'book' ? 'book' : kind === 'video' || kind === 'movie' ? 'video' : 'music'} size={20} />}
     </span>
   );
 }
@@ -111,9 +113,17 @@ export function AddBook({ onDone }: { onDone: () => void }) {
 export function MediaDetail({ item, onClose }: { item: MediaItem; onClose: () => void }) {
   const snap = useStore();
   const navigate = useNavigate();
-  const { confirm } = useFeedback();
+  const { confirm, toast } = useFeedback();
   const [m, setM] = useState(item);
   useEffect(() => setM(item), [item]);
+  const player = useRef<HTMLAudioElement>(null);
+  const [ytBusy, setYtBusy] = useState(false);
+  useEffect(() => {
+    const el = player.current;
+    return () => {
+      if (el) releaseMedia(el);
+    };
+  }, []);
   const set = (p: Partial<MediaItem>) => {
     const next = { ...m, ...p };
     setM(next);
@@ -151,10 +161,26 @@ export function MediaDetail({ item, onClose }: { item: MediaItem; onClose: () =>
 
       <textarea className="textarea" rows={3} placeholder="Notas rápidas" value={m.notes ?? ''} onChange={(e) => set({ notes: e.target.value })} />
 
-      {m.previewUrl && <audio className="audio" src={m.previewUrl} controls preload="none" onPlay={() => set({ plays: (m.plays ?? 0) + 1 })} />}
+      {m.previewUrl && <audio ref={player} className="audio" src={m.previewUrl} controls preload="none" onPlay={() => set({ plays: (m.plays ?? 0) + 1 })} />}
 
       <div className="group-body">
         {m.url && <a className="row" href={m.url} target="_blank" rel="noopener noreferrer"><span className="row-main"><span className="row-label">{m.mediaType === 'video' ? 'Ver en YouTube' : m.mediaType === 'book' ? 'Ver ficha' : 'Abrir enlace'}</span></span><Icon name="arrowRight" size={18} /></a>}
+        {m.mediaType === 'music' && ytReady() && (
+          <button type="button" className="row is-accent" disabled={ytBusy} onClick={async () => {
+            setYtBusy(true);
+            try {
+              const r = await ytAdd(m);
+              toast(`Agregada a «${r.playlist}»`);
+            } catch (e) {
+              toast((e as Error).message, { tone: 'error' });
+            } finally {
+              setYtBusy(false);
+            }
+          }}>
+            <span className="row-main"><span className="row-label">Agregar a mi lista de YouTube Music</span><span className="row-sub">{ytCached()?.playlist?.title}</span></span>
+            {ytBusy ? <span className="spinner" /> : <Icon name="plus" size={18} />}
+          </button>
+        )}
         {m.mediaType === 'music' && <a className="row" href={ytMusicSearch(m.title, m.creator)} target="_blank" rel="noopener noreferrer"><span className="row-main"><span className="row-label">Buscar en YouTube Music</span></span><Icon name="arrowRight" size={18} /></a>}
         {linked.map((n) => <Link key={n.id} to={`/biblioteca/nota/${n.id}`} className="row" onClick={onClose}><span className="row-main"><span className="row-label">{n.title || 'Nota'}</span><span className="row-sub">Nota vinculada</span></span></Link>)}
         <button
@@ -278,7 +304,9 @@ export function MusicTab() {
 export function PreviewButton({ url, onPlay }: { url: string; onPlay?: () => void }) {
   const [on, setOn] = useState(false);
   const audio = useRef<HTMLAudioElement | null>(null);
-  useEffect(() => () => audio.current?.pause(), []);
+  useEffect(() => () => {
+    if (audio.current) releaseMedia(audio.current);
+  }, []);
   return (
     <button
       type="button"
@@ -287,16 +315,28 @@ export function PreviewButton({ url, onPlay }: { url: string; onPlay?: () => voi
       onClick={(e) => {
         e.stopPropagation();
         if (!audio.current) {
-          audio.current = new Audio(url);
-          audio.current.onended = () => setOn(false);
+          const a = new Audio(url);
+          a.onended = () => {
+            setOn(false);
+            releaseMedia(a);
+          };
+          a.onpause = () => {
+            setOn(false);
+            // Sin esto, el reproductor del iPhone queda con la canción y no se puede cerrar.
+            if (!isReleasing(a)) releaseMedia(a);
+          };
+          a.onplay = () => setOn(true);
+          audio.current = a;
         }
-        if (on) audio.current.pause();
-        else {
-          document.querySelectorAll('audio').forEach((a) => a.pause());
-          void audio.current.play();
-          onPlay?.();
+        const a = audio.current;
+        if (!a.paused) {
+          a.pause();
+          return;
         }
-        setOn(!on);
+        // Pausa lo que estuviera sonando antes (otra canción, un audio, la lectura en voz alta).
+        claimPlayback(a);
+        void a.play();
+        onPlay?.();
       }}
     >
       <Icon name={on ? 'pause' : 'play'} size={14} filled strokeWidth={0} />
@@ -321,8 +361,10 @@ export function SearchMusic({ onDone }: { onDone: () => void }) {
     }
   };
   const add = async (h: MusicHit) => {
-    await saveMedia(newMedia('music', { title: h.title, creator: h.creator, cover: h.cover, genre: h.genre, previewUrl: h.previewUrl, url: h.url, category: h.category, year: h.year, meta: h.album ? { album: h.album } : undefined }));
+    const item = newMedia('music', { title: h.title, creator: h.creator, cover: h.cover, genre: h.genre, previewUrl: h.previewUrl, url: h.url, category: h.category, year: h.year, meta: h.album ? { album: h.album } : undefined });
+    await saveMedia(item);
     toast('Guardado en Para escuchar');
+    ytAutoAdd(item, (msg) => toast(msg));
   };
   return (
     <div className="stack">

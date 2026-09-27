@@ -64,6 +64,20 @@ export function BottomSheet({ open, onClose, title, description, children, foote
     (first ?? el)?.focus({ preventScroll: true });
   }, [visible, initialFocus]);
 
+  // Con el teclado abierto, mantiene visible el campo enfocado (el teclado de iOS tapa la hoja).
+  useEffect(() => {
+    if (!mounted) return;
+    const el = sheetRef.current;
+    if (!el) return;
+    const reveal = (e: FocusEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.matches('input, textarea, [contenteditable="true"]')) return;
+      [120, 360].forEach((ms) => setTimeout(() => t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), ms));
+    };
+    el.addEventListener('focusin', reveal);
+    return () => el.removeEventListener('focusin', reveal);
+  }, [mounted]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

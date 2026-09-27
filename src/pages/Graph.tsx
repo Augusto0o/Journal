@@ -54,6 +54,7 @@ export default function Graph() {
           </button>
         ))}
       </div>
+      <p className="graph-hint">Cada punto es algo tuyo; las líneas unen lo que comparte etiquetas, temas o vínculos. Tocá un punto para ver con qué se conecta y saltar ahí.</p>
       <svg
         ref={svg}
         className="graph-canvas"

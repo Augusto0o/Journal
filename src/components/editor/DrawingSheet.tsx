@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BottomSheet, Icon, type IconName } from '@/components/ui';
 import { cx, uuid } from '@/utils/misc';
+import { recognize, scaleShape, shapeCenter, type Shape } from './shapes';
 
 /**
  * Lienzo vectorial: lápiz, marcador, borrador, formas, flechas, texto,
  * selección para mover, deshacer y rehacer. Se puede dibujar sobre una imagen.
+ * Como en Notas de iOS: dibujá a mano y mantené el dedo quieto para que el trazo
+ * se vuelva una forma perfecta (seguí moviendo para ajustar el tamaño);
+ * tocá con dos dedos para deshacer y con tres para rehacer.
  * Devuelve un PNG para insertar en el Journal o en una nota.
  */
 
@@ -20,6 +24,8 @@ interface El {
   a?: Pt;
   b?: Pt;
   text?: string;
+  /** Trazo convertido en polígono cerrado. */
+  closed?: boolean;
   dx: number;
   dy: number;
 }
@@ -78,6 +84,7 @@ function draw(ctx: CanvasRenderingContext2D, e: El) {
     ctx.beginPath();
     e.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     if (e.pts.length === 1) ctx.lineTo(e.pts[0][0] + 0.1, e.pts[0][1]);
+    if (e.closed) ctx.closePath();
     ctx.stroke();
   } else if (e.t === 'text' && e.a) {
     ctx.font = `400 ${12 + e.w * 2}px 'Geist Variable', system-ui, sans-serif`;
@@ -122,6 +129,52 @@ export function DrawingSheet({ open, onClose, onInsert, background }: { open: bo
   const erasing = useRef(false);
   const textDown = useRef<Pt | null>(null);
   const openedAt = useRef(0);
+  // Mantener para encajar la forma
+  const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdFrom = useRef<Pt | null>(null);
+  const snap = useRef<{ shape: Shape; center: Pt; start: number } | null>(null);
+  const [snapLabel, setSnapLabel] = useState<string | null>(null);
+  // Gestos con varios dedos
+  const pointers = useRef(new Map<number, Pt>());
+  const multi = useRef<{ at: number; max: number; moved: boolean } | null>(null);
+  // Zoom y desplazamiento con dos dedos (solo acá: el resto de la app no hace zoom).
+  const view = useRef({ s: 1, x: 0, y: 0 });
+  const pinch = useRef<{ d: number; mid: Pt; v: { s: number; x: number; y: number } } | null>(null);
+  const [zoomed, setZoomed] = useState(false);
+
+  const shapeToEl = (base: El, sh: Shape): El => {
+    if (sh.kind === 'line') return { ...base, t: 'line', pts: undefined, a: sh.a, b: sh.b, closed: false };
+    if (sh.kind === 'ellipse') return { ...base, t: 'ellipse', pts: undefined, a: sh.a, b: sh.b, closed: false };
+    return { ...base, pts: sh.pts, closed: sh.closed };
+  };
+
+  const armHold = (p: Pt) => {
+    if (hold.current) clearTimeout(hold.current);
+    holdFrom.current = p;
+    hold.current = setTimeout(() => {
+      const c = cur.current;
+      if (!c?.pts || snap.current) return;
+      const sh = recognize(c.pts);
+      if (!sh) return;
+      const center = shapeCenter(sh);
+      snap.current = { shape: sh, center, start: Math.max(8, Math.hypot(p[0] - center[0], p[1] - center[1])) };
+      cur.current = shapeToEl(c, sh);
+      try {
+        navigator.vibrate?.(8);
+      } catch {
+        /* no-op */
+      }
+      setSnapLabel(sh.kind === 'line' ? 'Línea' : sh.kind === 'ellipse' ? (sh.circle ? 'Círculo' : 'Elipse') : sh.label.charAt(0).toUpperCase() + sh.label.slice(1));
+      setTimeout(() => setSnapLabel(null), 900);
+      render();
+    }, 520);
+  };
+
+  const clearHold = () => {
+    if (hold.current) clearTimeout(hold.current);
+    hold.current = null;
+    holdFrom.current = null;
+  };
 
   const commit = (next: El[]) => {
     past.current.push(els);
@@ -141,6 +194,8 @@ export function DrawingSheet({ open, onClose, onInsert, background }: { open: bo
     const r = c.getBoundingClientRect();
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, r.width, r.height);
+    const v = view.current;
+    ctx.setTransform(dpr * v.s, 0, 0, dpr * v.s, dpr * v.x, dpr * v.y);
     const img = bgImg.current;
     if (img) {
       const s = Math.min(r.width / img.width, r.height / img.height);
@@ -173,6 +228,8 @@ export function DrawingSheet({ open, onClose, onInsert, background }: { open: bo
       past.current = [];
       future.current = [];
       setSel(null);
+      view.current = { s: 1, x: 0, y: 0 };
+      setZoomed(false);
       bgImg.current = null;
       if (background) {
         const img = new Image();
@@ -191,17 +248,45 @@ export function DrawingSheet({ open, onClose, onInsert, background }: { open: bo
     render();
   });
 
-  const pos = (e: React.PointerEvent): Pt => {
+  const screen = (e: { clientX: number; clientY: number }): Pt => {
     const r = canvas.current!.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top];
+  };
+  const toWorld = ([x, y]: Pt): Pt => {
+    const v = view.current;
+    return [(x - v.x) / v.s, (y - v.y) / v.s];
+  };
+  const pos = (e: { clientX: number; clientY: number }): Pt => toWorld(screen(e));
+
+  const pinchInfo = () => {
+    const [a, b] = [...pointers.current.values()];
+    return { d: Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] as Pt };
+  };
+
+  const resetView = () => {
+    view.current = { s: 1, x: 0, y: 0 };
+    setZoomed(false);
+    render();
   };
 
   const hit = (p: Pt) => [...els].reverse().find((e) => nearStroke(e, p, 10));
 
   const down = (e: React.PointerEvent) => {
     if (textAt) return;
-    canvas.current!.setPointerCapture(e.pointerId);
     const p = pos(e);
+    pointers.current.set(e.pointerId, screen(e));
+    if (e.pointerType === 'touch' && pointers.current.size >= 2) {
+      if (pointers.current.size === 2) pinch.current = { ...pinchInfo(), v: { ...view.current } };
+      // Dos o tres dedos: es un gesto, no un trazo.
+      if (!multi.current) multi.current = { at: Date.now(), max: 0, moved: false };
+      multi.current.max = Math.max(multi.current.max, pointers.current.size);
+      cur.current = null;
+      clearHold();
+      snap.current = null;
+      render();
+      return;
+    }
+    canvas.current!.setPointerCapture(e.pointerId);
     if (tool === 'select') {
       const h = hit(p);
       setSel(h?.id ?? null);
@@ -228,6 +313,25 @@ export function DrawingSheet({ open, onClose, onInsert, background }: { open: bo
 
   const move = (e: React.PointerEvent) => {
     const p = pos(e);
+    if (multi.current) {
+      if (!pointers.current.has(e.pointerId)) return;
+      pointers.current.set(e.pointerId, screen(e));
+      const pc = pinch.current;
+      if (pc && pointers.current.size === 2) {
+        const { d, mid } = pinchInfo();
+        if (Math.abs(d - pc.d) > 14 || Math.hypot(mid[0] - pc.mid[0], mid[1] - pc.mid[1]) > 14) multi.current.moved = true;
+        if (!multi.current.moved) return;
+        const r = canvas.current!.getBoundingClientRect();
+        const ns = Math.min(5, Math.max(1, pc.v.s * (d / pc.d)));
+        const wx = (pc.mid[0] - pc.v.x) / pc.v.s;
+        const wy = (pc.mid[1] - pc.v.y) / pc.v.s;
+        const clamp = (o: number, size: number) => Math.min(0, Math.max(size - size * ns, o));
+        view.current = { s: ns, x: clamp(mid[0] - wx * ns, r.width), y: clamp(mid[1] - wy * ns, r.height) };
+        setZoomed(ns > 1.01);
+        render();
+      }
+      return;
+    }
     if (drag.current) {
       const d = drag.current;
       setEls((list) => list.map((x) => (x.id === d.id ? { ...x, dx: d.dx + p[0] - d.start[0], dy: d.dy + p[1] - d.start[1] } : x)));
@@ -240,15 +344,39 @@ export function DrawingSheet({ open, onClose, onInsert, background }: { open: bo
     }
     const c = cur.current;
     if (!c) return;
+    // Ya encajada: seguir moviendo ajusta la forma.
+    if (snap.current) {
+      const { shape, center, start } = snap.current;
+      if (shape.kind === 'line') cur.current = { ...c, b: p };
+      else cur.current = shapeToEl(c, scaleShape(shape, Math.hypot(p[0] - center[0], p[1] - center[1]) / start));
+      render();
+      return;
+    }
     if (c.pts) {
       const evs = (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent];
-      const r = canvas.current!.getBoundingClientRect();
-      for (const ev of evs) c.pts.push([ev.clientX - r.left, ev.clientY - r.top]);
+      for (const ev of evs) c.pts.push(pos(ev));
+      // Si el dedo se queda quieto, se intenta reconocer la forma.
+      if (!holdFrom.current || Math.hypot(p[0] - holdFrom.current[0], p[1] - holdFrom.current[1]) > 5) armHold(p);
     } else c.b = p;
     render();
   };
 
-  const up = () => {
+  const up = (e?: React.PointerEvent) => {
+    if (e) pointers.current.delete(e.pointerId);
+    if (multi.current) {
+      if (pointers.current.size < 2) pinch.current = null;
+      if (pointers.current.size === 0) {
+        const m = multi.current;
+        multi.current = null;
+        if (!m.moved && Date.now() - m.at < 450) {
+          if (m.max >= 3) redo();
+          else undo();
+        }
+      }
+      return;
+    }
+    clearHold();
+    snap.current = null;
     if (textDown.current) {
       const p = textDown.current;
       textDown.current = null;
@@ -299,6 +427,9 @@ export function DrawingSheet({ open, onClose, onInsert, background }: { open: bo
   const insert = () => {
     const c = canvas.current!;
     setSel(null);
+    view.current = { s: 1, x: 0, y: 0 };
+    setZoomed(false);
+    render();
     // Recorta al área usada (o a toda la imagen de fondo) sobre blanco.
     requestAnimationFrame(() => {
       const r = c.getBoundingClientRect();
@@ -356,10 +487,12 @@ export function DrawingSheet({ open, onClose, onInsert, background }: { open: bo
       </div>
       <div className="draw-stage">
         <canvas ref={canvas} className={cx('draw-canvas', `tool-${tool}`)} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
+        {snapLabel && <span className="snap-label">{snapLabel}</span>}
+        {zoomed && <button type="button" className="zoom-reset" onClick={resetView}>100%</button>}
         {textAt && (
           <input
             className="draw-text-input"
-            style={{ left: textAt[0], top: textAt[1] - 22, color: ink }}
+            style={{ left: textAt[0] * view.current.s + view.current.x, top: (textAt[1] - 22) * view.current.s + view.current.y, color: ink }}
             value={textVal}
             autoFocus
             placeholder="Escribí…"
@@ -369,6 +502,7 @@ export function DrawingSheet({ open, onClose, onInsert, background }: { open: bo
           />
         )}
       </div>
+      <p className="draw-hint">Mantené el dedo al terminar un trazo para una forma perfecta · pellizcá para hacer zoom · tocá con dos dedos: deshacer</p>
       <div className="hstack mt-4">
         <button type="button" className="btn btn-secondary grow" onClick={onClose}>Cancelar</button>
         <button type="button" className="btn btn-primary grow" onClick={insert} disabled={!els.length && !background}>Insertar</button>

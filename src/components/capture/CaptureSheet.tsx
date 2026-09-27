@@ -35,6 +35,7 @@ const ROUTE: Record<string, (id: string) => string> = {
   task: () => '/',
   journal: (id) => `/journal/${id}`,
   note: (id) => `/biblioteca/nota/${id}`,
+  media: () => '/biblioteca',
 };
 
 interface CaptureCtx {
@@ -124,7 +125,8 @@ function CaptureForm({ initialType, initialText, onDone }: { initialType: Captur
       haptic();
       onDone();
       const t = res.kind === 'task' ? store.get('task', res.id) : null;
-      const where = res.kind === 'task' ? 'Hoy' : res.kind === 'journal' ? 'el journal de hoy' : 'el Cuaderno';
+      const media = res.kind === 'media' ? store.get('media', res.id) : null;
+      const where = res.kind === 'task' ? 'Hoy' : res.kind === 'journal' ? 'el journal de hoy' : media ? `Biblioteca · ${media.mediaType === 'music' ? 'Para escuchar' : 'Para ver'}` : 'el Cuaderno';
       if (t?.alarm && t.dueDate && t.dueTime) {
         toast(`Alarma ${formatRelativeDay(t.dueDate).toLowerCase()} a las ${t.dueTime}`, {
           action: { label: 'Agendar en iOS', onClick: () => sendReminderToIOS(t.title, t.dueDate!, t.dueTime!) },
