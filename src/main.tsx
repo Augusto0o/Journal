@@ -1,0 +1,37 @@
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import { store } from '@/database/store';
+import { initSync } from '@/services/sync';
+import { loadVaultState } from '@/services/vault';
+import '@fontsource-variable/geist';
+import './styles/tokens.css';
+import './styles/base.css';
+import './styles/components.css';
+import './styles/screens.css';
+import './styles/sections.css';
+import './styles/v3.css';
+
+void store.init().then(async () => {
+  const { runMigrations } = await import('@/services/migrate');
+  await runMigrations().catch((e) => console.error('[migrate]', e));
+  const splash = document.getElementById('splash');
+  if (splash) {
+    splash.classList.add('hide');
+    setTimeout(() => splash.remove(), 300);
+  }
+  void initSync();
+  void loadVaultState();
+});
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('SW no registrado', err));
+  });
+}

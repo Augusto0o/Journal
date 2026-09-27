@@ -1,0 +1,190 @@
+/*
+ * Personal OS — tokens.
+ * Mundo: escritorio nocturno. Fondo tinta (oscuro) o porcelana fría (claro),
+ * un único acento pervinca para acción/selección/estado, y cápsulas casi negras
+ * para todo el cromo flotante (como la barra del lector de referencia).
+ */
+
+:root {
+  /* Tipografía */
+  --font-ui: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif;
+  --font-display: var(--font-ui);
+  --font-serif: -apple-system-ui-serif, ui-serif, 'New York', 'Iowan Old Style', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Menlo', monospace;
+  --font-content: var(--font-ui);
+  --font-rounded: ui-rounded, 'SF Pro Rounded', -apple-system, system-ui, sans-serif;
+
+  /* Escala (iOS Dynamic Type, tamaño grande por defecto) */
+  --t-caption: 12px;
+  --t-footnote: 13px;
+  --t-sub: 15px;
+  --t-body: 17px;
+  --t-title3: 19px;
+  --t-title2: 22px;
+  --t-title1: 27px;
+  --t-large: 32px;
+
+  /* Contenido (lo ajusta Apariencia) */
+  --content-size: 18px;
+  --content-weight: 400;
+  --content-leading: 1.5;
+  --content-align: left;
+  --content-liga: common-ligatures;
+  --content-measure: 38rem;
+
+  /* Espacio: ritmo de 4 */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+  --s12: 48px;
+  --gutter: 20px;
+
+  /* Radios */
+  --r-xs: 8px;
+  --r-sm: 10px;
+  --r: 14px;
+  --r-lg: 20px;
+  --r-card: 16px;
+  --r-pill: 999px;
+
+  /* Movimiento (Emil Kowalski) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --d-press: 120ms;
+  --d-fast: 160ms;
+  --d-base: 220ms;
+  --d-sheet: 380ms;
+
+  /* Cromo */
+  --nav-h: 60px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --dock-space: calc(var(--nav-h) + max(var(--safe-bottom), 12px) + 28px);
+
+  /* Acento (tono y croma; la luminosidad la fija cada tema) */
+  --accent-h: 265;
+  --accent-c: 0.15;
+
+  /* Paleta de hábitos / categorías */
+  --hue-indigo: 275;
+  --hue-violet: 300;
+  --hue-blue: 245;
+  --hue-teal: 195;
+  --hue-green: 150;
+  --hue-amber: 75;
+  --hue-rose: 15;
+  --hue-slate: 265;
+}
+
+/* ---------- Claro: gris papel (referencias) ---------- */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: oklch(0.968 0 0);
+  --bg-tint: oklch(0.968 0 0);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.945 0 0);
+  --surface-3: oklch(0.91 0 0);
+  --text: oklch(0.22 0 0);
+  --text-2: oklch(0.47 0 0);
+  --text-3: oklch(0.6 0 0);
+  --line: oklch(0 0 0 / 0.07);
+  --line-strong: oklch(0 0 0 / 0.13);
+  --accent: oklch(0.55 var(--accent-c) var(--accent-h));
+  --accent-ink: oklch(0.99 0 0);
+  --accent-text: oklch(0.5 var(--accent-c) var(--accent-h));
+  --accent-soft: oklch(0.55 var(--accent-c) var(--accent-h) / 0.1);
+  --accent-line: oklch(0.55 var(--accent-c) var(--accent-h) / 0.5);
+  --pill: oklch(0.945 0 0);
+  --danger: oklch(0.55 0.19 25);
+  --danger-soft: oklch(0.55 0.19 25 / 0.09);
+  --success: oklch(0.58 0.12 150);
+  --warn: oklch(0.68 0.13 70);
+  --shadow-1: 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-2: 0 18px 44px oklch(0 0 0 / 0.1), 0 2px 8px oklch(0 0 0 / 0.05);
+  --scrim: oklch(0 0 0 / 0.2);
+  --capsule: oklch(1 0 0 / 0.92);
+  --capsule-solid: oklch(0.14 0 0);
+  --capsule-edge: oklch(0 0 0 / 0.06);
+  --capsule-text: oklch(0.22 0 0);
+  --capsule-text-2: oklch(0.5 0 0);
+  --capsule-hover: oklch(0.95 0 0);
+  --capsule-active: oklch(0.935 0 0);
+  --habit-l: 0.62;
+  --habit-c: 0.12;
+  --selection: oklch(0.55 var(--accent-c) var(--accent-h) / 0.18);
+}
+
+/* ---------- Oscuro: grafito (modo principal) ---------- */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: oklch(0.14 0 0);
+  --bg-tint: oklch(0.14 0 0);
+  --surface: oklch(0.19 0 0);
+  --surface-2: oklch(0.235 0 0);
+  --surface-3: oklch(0.285 0 0);
+  --text: oklch(0.955 0 0);
+  --text-2: oklch(0.72 0 0);
+  --text-3: oklch(0.56 0 0);
+  --line: oklch(1 0 0 / 0.07);
+  --line-strong: oklch(1 0 0 / 0.13);
+  --accent: oklch(0.6 calc(var(--accent-c) * 1.1) var(--accent-h));
+  --accent-ink: oklch(0.99 0 0);
+  --accent-text: oklch(0.75 calc(var(--accent-c) * 0.8) var(--accent-h));
+  --accent-soft: oklch(0.6 var(--accent-c) var(--accent-h) / 0.18);
+  --accent-line: oklch(0.7 var(--accent-c) var(--accent-h) / 0.55);
+  --pill: oklch(0.235 0 0);
+  --danger: oklch(0.7 0.16 25);
+  --danger-soft: oklch(0.7 0.16 25 / 0.14);
+  --success: oklch(0.74 0.12 150);
+  --warn: oklch(0.8 0.12 75);
+  --shadow-1: 0 1px 2px oklch(0 0 0 / 0.35);
+  --shadow-2: 0 18px 44px oklch(0 0 0 / 0.55), 0 2px 8px oklch(0 0 0 / 0.35);
+  --scrim: oklch(0 0 0 / 0.6);
+  --capsule: oklch(0.2 0 0 / 0.94);
+  --capsule-solid: oklch(0.955 0 0);
+  --capsule-edge: oklch(1 0 0 / 0.08);
+  --capsule-text: oklch(0.955 0 0);
+  --capsule-text-2: oklch(0.66 0 0);
+  --capsule-hover: oklch(1 0 0 / 0.06);
+  --capsule-active: oklch(0.29 0 0);
+  --habit-l: 0.72;
+  --habit-c: 0.11;
+  --selection: oklch(0.6 0.14 var(--accent-h) / 0.35);
+}
+
+/* ---------- Acentos ---------- */
+[data-accent='crimson'] { --accent-h: 22; --accent-c: 0.19; }
+[data-accent='terracotta'] { --accent-h: 45; --accent-c: 0.14; }
+[data-accent='ink'] { --accent-h: 272; --accent-c: 0.03; }
+[data-accent='indigo'] { --accent-h: 275; --accent-c: 0.16; }
+[data-accent='violet'] { --accent-h: 298; --accent-c: 0.15; }
+[data-accent='blue'] { --accent-h: 265; --accent-c: 0.15; }
+[data-accent='teal'] { --accent-h: 195; --accent-c: 0.1; }
+[data-accent='green'] { --accent-h: 152; --accent-c: 0.12; }
+[data-accent='amber'] { --accent-h: 65; --accent-c: 0.13; }
+[data-accent='rose'] { --accent-h: 12; --accent-c: 0.15; }
+[data-theme='light'][data-accent='ink'] { --accent: oklch(0.24 0.02 272); --accent-text: oklch(0.24 0.02 272); }
+[data-theme='dark'][data-accent='ink'] { --accent: oklch(0.93 0.01 272); --accent-text: oklch(0.93 0.01 272); --accent-ink: oklch(0.17 0.02 272); }
+
+/* ---------- Fondos ---------- */
+[data-theme='light'][data-backdrop='warm'] { --bg: oklch(0.935 0.018 75); --surface-2: oklch(0.91 0.02 72); }
+[data-theme='dark'][data-backdrop='warm'] { --bg: oklch(0.17 0.012 60); --surface: oklch(0.21 0.013 60); --surface-2: oklch(0.25 0.014 60); }
+[data-theme='light'][data-backdrop='cool'] { --bg: oklch(0.955 0.008 250); --surface-2: oklch(0.93 0.008 250); }
+[data-theme='dark'][data-backdrop='cool'] { --bg: oklch(0.15 0.032 262); }
+
+/* ---------- Tipografía de contenido ---------- */
+[data-font='system'] { --font-content: var(--font-ui); }
+[data-font='newYork'] { --font-content: -apple-system-ui-serif, ui-serif, 'New York', Georgia, serif; }
+[data-font='georgia'] { --font-content: Georgia, 'Times New Roman', serif; }
+[data-font='iowan'] { --font-content: 'Iowan Old Style', 'Palatino Linotype', Palatino, ui-serif, Georgia, serif; }
+[data-font='avenir'] { --font-content: 'Avenir Next', Avenir, 'Segoe UI', system-ui, sans-serif; }
+[data-font='rounded'] { --font-content: var(--font-rounded); }
+[data-font='mono'] { --font-content: var(--font-mono); }
+[data-font-ui='true'] { --font-ui: var(--font-content); }
