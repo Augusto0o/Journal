@@ -96,6 +96,42 @@ export function parseYouTube(url: string): { videoId: string | null; listId: str
   }
 }
 
+/** ¿Es un enlace de YouTube o YouTube Music? Devuelve el tipo de medio que corresponde. */
+export function youtubeKind(text: string): { url: string; type: 'video' | 'music' } | null {
+  const url = text.match(/https?:\/\/[^\s<>"]+/i)?.[0]?.replace(/[).,;]+$/, '');
+  if (!url) return null;
+  try {
+    const host = new URL(url).hostname.replace(/^www\.|^m\./, '');
+    if (host === 'music.youtube.com') return { url, type: 'music' };
+    if (host === 'youtube.com' || host === 'youtu.be') return { url, type: 'video' };
+  } catch {
+    /* no es una URL */
+  }
+  return null;
+}
+
+/** Guarda un enlace compartido de YouTube / YouTube Music en la Biblioteca, con título y miniatura. */
+export async function saveYouTubeLink(text: string, force?: 'video' | 'music'): Promise<MediaItem | null> {
+  const yt = youtubeKind(text);
+  if (!yt) return null;
+  const type = force ?? yt.type;
+  const { videoId, listId } = parseYouTube(yt.url);
+  const canonical = videoId ? `https://www.youtube.com/watch?v=${videoId}` : listId ? `https://www.youtube.com/playlist?list=${listId}` : yt.url;
+  const meta = await fetchLinkMeta(canonical);
+  const m = newMedia(type, {
+    url: yt.url,
+    title: meta.title || (type === 'music' ? 'Canción de YouTube Music' : 'Video de YouTube'),
+    creator: meta.creator.replace(/\s*-\s*Topic$/i, ''),
+    cover: meta.cover,
+    category: type === 'music' ? (videoId ? 'Canción' : 'Playlist') : 'Ver más tarde',
+    notes: text.replace(yt.url, '').trim(),
+    meta: { ...(videoId ? { videoId } : {}), ...(listId ? { listId } : {}), source: 'share' },
+  });
+  await saveMedia(m);
+  if (type === 'music') void import('./youtube').then((y) => y.ytAutoAdd(m));
+  return m;
+}
+
 export async function fetchLinkMeta(url: string): Promise<{ title: string; creator: string; cover: string | null }> {
   const { videoId } = parseYouTube(url);
   try {
@@ -213,16 +249,33 @@ function artistName(d?: string) {
   return d.split(/\s*\(/)[0].trim() || d;
 }
 
-export async function fetchArtwork(seed: number): Promise<Artwork> {
-  const skip = Math.abs(seed * 37) % 1800;
-  const r = await getJSON<{ data: CmaArt[] }>(
-    `https://openaccess-api.clevelandart.org/api/artworks/?type=Painting&has_image=1&cc0=1&limit=25&skip=${skip}&fields=id,title,creation_date,creators,culture,technique,description,did_you_know,url,images`,
-  );
+let cmaTotal = 0;
+
+const CMA_BASE = 'https://openaccess-api.clevelandart.org/api/artworks/?type=Painting&has_image=1&cc0=1';
+const CMA_FIELDS = '&fields=id,title,creation_date,creators,culture,technique,description,did_you_know,url,images';
+
+/** Una página de obras (sin traducir) a partir de una semilla. */
+async function artPage(seed: number): Promise<CmaArt[]> {
+  // Cuántas pinturas hay, para no pedir una página vacía.
+  if (!cmaTotal) {
+    try {
+      const info = await getJSON<{ info?: { total?: number } }>(`${CMA_BASE}&limit=1&fields=id`);
+      cmaTotal = info.info?.total ?? 0;
+    } catch {
+      cmaTotal = 0;
+    }
+  }
+  const pages = Math.max(1, Math.floor((cmaTotal || 1000) / 25));
+  const page = Math.abs(seed * 7919) % pages;
+  let r = await getJSON<{ data: CmaArt[] }>(`${CMA_BASE}&limit=25&skip=${page * 25}${CMA_FIELDS}`);
+  if (!r.data?.length) r = await getJSON<{ data: CmaArt[] }>(`${CMA_BASE}&limit=25&skip=0${CMA_FIELDS}`);
   const pool = r.data.filter((a) => a.images?.web?.url);
   const withText = pool.filter((a) => a.description || a.did_you_know);
-  const list = withText.length ? withText : pool;
-  const a = list[seed % Math.max(1, list.length)] ?? list[0];
-  if (!a) throw new Error('Sin obra disponible');
+  return withText.length >= 4 ? withText : pool;
+}
+
+/** Traduce y arma la ficha de una obra. */
+async function toArtwork(a: CmaArt): Promise<Artwork> {
   const desc = stripHtml(a.description ?? '');
   const fact = stripHtml(a.did_you_know ?? '');
   const creator = a.creators?.find((c) => c.role === 'artist') ?? a.creators?.[0];
@@ -240,4 +293,23 @@ export async function fetchArtwork(seed: number): Promise<Artwork> {
     context: [[technique, from].filter(Boolean).join(' · '), context ? `¿Sabías que…? ${context}` : ''].filter(Boolean).join('\n\n'),
     url: a.url ?? `https://www.clevelandart.org/art/${a.id}`,
   };
+}
+
+export interface ArtThumb { id: number; title: string; artist: string; thumb: string; seed: number; index: number }
+
+export async function fetchArtwork(seed: number, index?: number): Promise<Artwork> {
+  const list = await artPage(seed);
+  const a = list[(index ?? Math.abs(seed)) % Math.max(1, list.length)] ?? list[0];
+  if (!a) throw new Error('Sin obra disponible');
+  return toArtwork(a);
+}
+
+/** Otras obras de la misma tanda, para explorar (miniaturas). */
+export async function moreArtworks(seed: number, excludeId?: number | string): Promise<ArtThumb[]> {
+  const list = await artPage(seed);
+  return list
+    .map((a, index) => ({ a, index }))
+    .filter(({ a }) => a.id !== excludeId)
+    .slice(0, 12)
+    .map(({ a, index }) => ({ id: a.id, title: a.title, artist: artistName((a.creators?.find((c) => c.role === 'artist') ?? a.creators?.[0])?.description), thumb: a.images!.web!.url!, seed, index }));
 }

@@ -8,7 +8,7 @@
 // Si uno falla (límite diario, caída), se prueba el siguiente configurado.
 //
 // Secretos opcionales: GEMINI_MODEL, GROQ_MODEL, GROQ_WHISPER_MODEL, ANTHROPIC_MODEL, AI_PROVIDER.
-// Verify JWT: ACTIVADO (solo tu usuario con sesión puede llamar).
+// Verify JWT: puede ir DESACTIVADO: la función valida la sesión del usuario con Auth.
 // =====================================================================
 
 const env = (k: string, d = "") => Deno.env.get(k) ?? d;
@@ -19,6 +19,8 @@ const GROQ_MODEL = env("GROQ_MODEL", "openai/gpt-oss-120b");
 const GROQ_WHISPER_MODEL = env("GROQ_WHISPER_MODEL", "whisper-large-v3-turbo");
 const ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY");
 const ANTHROPIC_MODEL = env("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001");
+// Opcional: clave gratuita de themoviedb.org para portadas, sinopsis y «dónde verla».
+const TMDB_API_KEY = env("TMDB_API_KEY");
 const DEFAULT_PROVIDER = env("AI_PROVIDER", "auto");
 const SUPABASE_URL = env("SUPABASE_URL");
 const SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY");
@@ -29,7 +31,7 @@ type Action =
   | "summarize" | "simplify" | "reformulate" | "correct" | "structure" | "explain" | "translate_en" | "translate_es"
   | "extract_tasks" | "classify" | "search" | "voice_extract" | "transcribe" | "lookup"
   | "english_correct" | "english_speaking" | "english_day" | "english_lesson"
-  | "visualize" | "ask" | "assistant" | "recommend" | "image";
+  | "visualize" | "ask" | "assistant" | "recommend" | "image" | "tmdb";
 
 const TEXT_ACTIONS = ["summarize", "simplify", "reformulate", "correct", "structure", "explain", "translate_en", "translate_es"];
 const JSON_ACTIONS = ["extract_tasks", "classify", "search", "voice_extract", "english_correct", "english_speaking", "english_day", "english_lesson", "visualize", "ask", "assistant", "recommend"];
@@ -65,7 +67,9 @@ const json = (body: unknown, status = 200) =>
 async function verifyUser(req: Request) {
   const auth = req.headers.get("Authorization");
   if (!auth) return false;
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { Authorization: auth, apikey: SUPABASE_ANON_KEY } });
+  // Usa la clave que manda la app (anon o publishable) para validar la sesión con Auth.
+  const apikey = req.headers.get("apikey") || SUPABASE_ANON_KEY;
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { Authorization: auth, apikey } });
   return res.ok;
 }
 
@@ -176,8 +180,9 @@ Recomendá contenido del tipo "${p.mediaKind ?? "music"}" según el perfil de gu
 - books: libros reales (title, creator = autor, genre, why).
 - videos: temas o canales de YouTube reales (title, creator = canal, category, why).
 - topics: temas para explorar (title, why).
+- movies: películas reales y existentes (title = título original o más conocido, creator = director, genre, year, why). Si el perfil pide un género, respetalo.
 "why" en una frase en español.
-Formato: {"items":[{"title":"...","creator":"...","genre":"...","category":"...","why":"..."}]} con 8 elementos.`;
+Formato: {"items":[{"title":"...","creator":"...","genre":"...","category":"...","year":"...","why":"..."}]} con 8 elementos.`;
     default:
       return common;
   }
@@ -345,6 +350,21 @@ Deno.serve(async (req) => {
       if (u.protocol !== "https:" || !LOOKUP_HOSTS.includes(u.hostname)) return json({ error: "Servicio no permitido" }, 400);
       const r = await fetch(u.toString(), { headers: { "user-agent": "PersonalOS/1.0" } });
       if (!r.ok) return json({ error: `Servicio ${r.status}` }, 502);
+      return json(await r.json());
+    }
+
+    if (p.action === "tmdb") {
+      // Proxy de solo lectura a TMDB (la clave queda en Supabase).
+      if (!TMDB_API_KEY) return json({ error: "no_tmdb" }, 503);
+      const q = p as unknown as { path?: string; params?: Record<string, string> };
+      const path = String(q.path ?? "");
+      if (!/^(search\/movie|discover\/movie|genre\/movie\/list|movie\/\d+(\/watch\/providers|\/recommendations)?)$/.test(path)) return json({ error: "Ruta no permitida" }, 400);
+      const u = new URL(`https://api.themoviedb.org/3/${path}`);
+      for (const [k, v] of Object.entries(q.params ?? {})) u.searchParams.set(k, String(v));
+      const bearer = TMDB_API_KEY.startsWith("ey");
+      if (!bearer) u.searchParams.set("api_key", TMDB_API_KEY);
+      const r = await fetch(u.toString(), { headers: bearer ? { Authorization: `Bearer ${TMDB_API_KEY}` } : {} });
+      if (!r.ok) return json({ error: `TMDB ${r.status}` }, 502);
       return json(await r.json());
     }
 

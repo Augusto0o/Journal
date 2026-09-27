@@ -27,15 +27,19 @@ En el iPhone: abrí la URL en Safari → **Compartir** → **Agregar a inicio**.
      supabase functions deploy ai
      supabase functions deploy capture --no-verify-jwt
      ```
-   - Desde el panel web: creá `ai` pegando `supabase/functions/ai/index.ts` (con **Verify JWT** activado) y `capture` pegando `supabase/dashboard/capture.ts`. Esa es la versión en un solo archivo, y va con **Verify JWT desactivado**.
+   - Desde el panel web: creá `ai` pegando `supabase/functions/ai/index.ts` (con **Verify JWT** desactivado: la función valida la sesión por su cuenta, y así funciona con las claves nuevas de Supabase) y `capture`, `push` y `youtube` también con **Verify JWT desactivado**. Las que importan otros archivos se pegan en un solo archivo generado con `npx esbuild supabase/functions/<nombre>/index.ts --bundle --format=esm --platform=neutral --external:'npm:*'`.
 3. **Edge Functions → Secrets**:
    | Secreto | Para qué | Dónde se saca |
    |---|---|---|
    | `GEMINI_API_KEY` | IA gratis (principal) | aistudio.google.com → Get API key |
    | `GROQ_API_KEY` | IA gratis de respaldo + dictado (Whisper) | console.groq.com → API Keys |
    | `ANTHROPIC_API_KEY` | Claude (opcional, pago) | console.anthropic.com |
+   | `TMDB_API_KEY` | Películas: portadas, sinopsis y plataformas (opcional, gratis) | themoviedb.org → Ajustes → API |
+   | `VAPID_JWK` | Avisos push: clave privada EC P-256 en JSON (`{"kty":"EC","crv":"P-256","x","y","d"}`) | se genera una vez (ver `supabase/migrations/002_push.sql`) |
+   | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | YouTube Music: agregar canciones a tu lista (función `youtube`, tabla de `003_youtube.sql`) | Google Cloud → cliente OAuth «Aplicación web», con redirección `https://<proyecto>.supabase.co/functions/v1/youtube/callback` y la API «YouTube Data API v3» habilitada |
+   | `CRON_SECRET` | Avisos push: el mismo texto que usa el job de pg_cron | cualquier texto largo al azar |
    | `GEMINI_MODEL` / `GROQ_MODEL` | opcional, para cambiar de modelo | por defecto `gemini-flash-latest` / `openai/gpt-oss-120b` |
-4. **Authentication → Providers → Email**: activo. Creá tu cuenta desde la app (Más → Sincronización).
+4. **Authentication → Providers → Email**: activo. Creá tu cuenta desde la app (Ajustes → Sincronización).
 
 ### Sobre la IA gratuita
 - Gemini (nivel gratuito): tiene límites diarios, y Google puede usar lo enviado para mejorar sus modelos. Groq: gratis con límite de pedidos por día.
@@ -61,6 +65,13 @@ Está como tarjeta en **Hoy** (tocala para abrir la sección) y también se encu
 - **Cuaderno:** una sola lista por mes con journal, notas, ideas, enlaces, mapas y PDFs. Sin filtros: se busca escribiendo. Deslizá una nota a la izquierda para **anclar, archivar o eliminar** (un deslizamiento largo elimina, con confirmación). El **+** elige el tipo (incluye «Mapa de un texto» e importar PDF). Carpetas y Archivo, al pie.
 - **Biblioteca:** un estante ordenado por estado (Leyendo, Para leer, Para ver, Para escuchar; lo terminado plegado), más Descubrir (música, libros y temas) y la Obra del día.
 - **Lupa · Buscar o preguntar:** busca solo en tu contenido y le pregunta a la IA. Las secciones no están ahí: cada una vive en su pestaña (Hábitos, Inglés, Foco y Frase en Hoy; Mapas, PDFs y Grafo en Cuaderno; Descubrir y Obra del día en Biblioteca; Contraseñas en Ajustes).
+- **Compartir desde YouTube / YouTube Music:** con el atajo «Guardar en Personal OS» (Ajustes → Atajos de iOS) aparece en la hoja de Compartir. Un video va a Biblioteca · Para ver y una canción o playlist a Para escuchar, con título, canal y portada. En Android/Chrome la app aparece directo en Compartir.
+- **Búsqueda:** una barra fija arriba de Hoy, Cuaderno y Biblioteca abre «Buscar o preguntar».
+- **Contraseñas:** botón de llave en Hoy. Se desbloquean con **Face ID** (iOS 18+, WebAuthn con PRF: la contraseña maestra queda cifrada con una llave que solo se libera con tu cara).
+- **Avisos con la app cerrada** (Ajustes → Notificaciones): Web Push con la función `push` y un job de pg_cron por minuto (`002_push.sql`). Avisa las tareas con hora y el fin de cada bloque del Pomodoro. En iPhone, con la app en la pantalla de inicio (iOS 16.4+).
+- **Películas** (Biblioteca → Películas): buscar, recomendaciones por género hechas por tu IA, portada y sinopsis, «dónde verla» y un diario con puntaje de media estrella. Sin clave usa Wikipedia; con `TMDB_API_KEY` en los secretos de Supabase (gratis en themoviedb.org) muestra las plataformas de Argentina.
+- **Frases:** más de 150, con búsqueda y lista de escritores.
+- **Dibujo:** mantené el dedo al terminar un trazo para una forma perfecta (línea, círculo, elipse, triángulo, rectángulo, polígono) y seguí moviendo para ajustar; dos dedos deshacen, tres rehacen.
 - **Ajustes:** una sola pantalla con secciones plegables (Apariencia, Hoy, General, IA, Sincronización, Atajos, Datos). Se abre con el ícono de arriba a la derecha en Hoy.
 - **Lector:** píldora «Índice · %» con los títulos del texto, y **Aa** abre el panel de lectura: tema, voz, texto (fuentes y tipografía), buscar, y deslizadores de tamaño y brillo.
 - **IA contextual:** al seleccionar texto en el editor aparece «Preguntar a la IA» con resumir, explicar, corregir, reformular, traducir, mapa mental, mapa conceptual, diagrama de sistema, flujo y crear tarea. Se puede comparar el original con la versión nueva.
@@ -107,6 +118,5 @@ src/
   styles/       tokens, base, componentes, pantallas
 supabase/
   migrations/   esquema
-  functions/    ai (Gemini/Groq/Claude) · capture (Atajos) · _shared (parser en español)
-  dashboard/    capture.ts en un solo archivo para pegar en el panel
+  functions/    ai (Gemini/Groq/Claude) · capture (Atajos) · push (avisos) · youtube (listas) · _shared
 ```

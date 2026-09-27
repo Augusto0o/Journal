@@ -1,6 +1,7 @@
 import type { Quote } from '@/types';
+import { MORE_QUOTES } from './quotesMore';
 
-export const QUOTES: Quote[] = [
+const BASE_QUOTES: Quote[] = [
   { text: "No es que tengamos poco tiempo, sino que perdemos mucho.", author: "Séneca", context: "De la brevedad de la vida, carta a Paulino (c. 49 d. C.).", meaning: "La vida alcanza si no la regalamos a lo que no importa. El problema rara vez es la falta de tiempo, sino dónde lo ponemos." },
   { text: "No son las cosas las que nos perturban, sino las opiniones que tenemos de ellas.", author: "Epicteto", context: "Enquiridión, capítulo 5. Epicteto fue un esclavo liberto que enseñó filosofía estoica.", meaning: "Entre lo que pasa y cómo nos sentimos hay un juicio. Ese juicio sí depende de nosotros." },
   { text: "Primero di qué quieres ser; luego haz lo que tengas que hacer.", author: "Epicteto", context: "Discursos, libro III.", meaning: "Definir la dirección simplifica las decisiones: cada acción se evalúa según si te acerca o no." },
@@ -22,6 +23,15 @@ export const QUOTES: Quote[] = [
   { text: "Lo esencial es invisible a los ojos.", author: "Antoine de Saint-Exupéry", context: "El principito (1943), dicho por el zorro.", meaning: "Lo que más importa suele no verse a simple vista: vínculos, tiempo dedicado, cuidado." },
   { text: "Quien tiene paciencia obtendrá lo que desea.", author: "Benjamin Franklin", context: "Almanaque del pobre Richard (siglo XVIII).", meaning: "Muchos logros dependen más de la constancia que del talento." },
 ];
+
+export const QUOTES: Quote[] = [...BASE_QUOTES, ...MORE_QUOTES];
+
+/** Autores con cantidad de frases, ordenados alfabéticamente. */
+export function quoteAuthors(): { name: string; count: number }[] {
+  const m = new Map<string, number>();
+  QUOTES.forEach((q) => m.set(q.author, (m.get(q.author) ?? 0) + 1));
+  return [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+}
 
 /** Frase determinista por día (la misma durante todo el día). */
 export function quoteOfDay(day: string): Quote {

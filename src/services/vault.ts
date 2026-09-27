@@ -124,7 +124,7 @@ export async function unlock(master: string): Promise<boolean> {
   const all = await idb.getAll<EncryptedItem | VaultConfig>('vault');
   const out: PasswordItem[] = [];
   for (const e of all) {
-    if (e.id === 'config') continue;
+    if (e.id === 'config' || e.id === 'bio') continue;
     try {
       out.push(JSON.parse(await decrypt(k, e as EncryptedItem)) as PasswordItem);
     } catch {

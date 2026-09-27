@@ -1,3 +1,4 @@
+import { cancelPush, schedulePush } from './push';
 import type { PomodoroPhase, PomodoroSettings, PomodoroState, Settings } from '@/types';
 import { store } from '@/database/store';
 import { DEFAULT_POMODORO_SETTINGS, DEFAULT_POMODORO_STATE, DEFAULT_SETTINGS, PREF } from './prefs';
@@ -25,7 +26,12 @@ export function clock(ms: number) {
 }
 
 async function save(s: PomodoroState) {
+  const prev = pomoState();
   await store.setPref(PREF.pomodoro, s);
+  // Aviso push al terminar el bloque, aunque la app esté cerrada.
+  if (s.endsAt && s.phase !== 'idle') {
+    if (s.endsAt !== prev.endsAt || s.phase !== prev.phase) schedulePush('pomodoro', s.endsAt, s.phase === 'focus' ? 'Terminó el foco' : 'Terminó el descanso', s.phase === 'focus' ? 'Tomate un descanso.' : 'Volvamos al foco.', '/pomodoro');
+  } else if (prev.endsAt) cancelPush('pomodoro');
 }
 
 function maybeIosTimer(ms: number) {

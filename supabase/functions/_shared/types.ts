@@ -204,7 +204,7 @@ export interface DocFile extends BaseRecord {
 
 // ---------------- Biblioteca multimedia ----------------
 
-export type MediaType = 'book' | 'video' | 'music' | 'art';
+export type MediaType = 'book' | 'video' | 'music' | 'art' | 'movie';
 export type MediaStatus = 'want' | 'reading' | 'finished' | 'later' | 'watched' | 'listened' | 'liked' | 'dismissed' | 'saved';
 
 export interface MediaItem extends BaseRecord {
@@ -221,6 +221,9 @@ export interface MediaItem extends BaseRecord {
   status: MediaStatus;
   /** 0–100 (libros). */
   progress?: number;
+  /** Películas: puntaje de 0.5 a 5 (medias estrellas) y fecha en que se vio. */
+  rating?: number | null;
+  watchedOn?: string | null;
   notes?: string;
   year?: string | null;
   duration?: string | null;

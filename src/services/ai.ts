@@ -249,9 +249,15 @@ export interface RecItem {
   genre?: string;
   why?: string;
   category?: string;
+  year?: string;
 }
 
-export async function recommend(kind: 'music' | 'books' | 'videos' | 'topics', profile: string): Promise<RecItem[]> {
+export async function recommend(kind: 'music' | 'books' | 'videos' | 'topics' | 'movies', profile: string): Promise<RecItem[]> {
   const r = await call<{ items?: RecItem[] }>('recommend', { text: profile, mediaKind: kind });
   return arr<RecItem>(r.items).filter((x) => x && x.title);
+}
+
+/** Proxy de solo lectura a TMDB a través de tu función (necesita TMDB_API_KEY en Supabase). */
+export async function tmdb<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
+  return call<T>('tmdb', { path, params });
 }

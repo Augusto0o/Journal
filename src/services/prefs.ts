@@ -1,4 +1,4 @@
-import type { EnglishSettings, Appearance, HomeLayout, PomodoroSettings, PomodoroState, Preset, Settings } from '@/types';
+import type { EnglishSettings, Appearance, HomeLayout, HomeModule, PomodoroSettings, PomodoroState, Preset, Settings } from '@/types';
 
 export const DEFAULT_APPEARANCE: Appearance = {
   preset: 'minimal',
@@ -147,3 +147,20 @@ export const PREF = {
   favoriteQuotes: 'favoriteQuotes',
   generator: 'passwordGenerator',
 } as const;
+
+/** Bloques de «Hoy» que se pueden mostrar y ordenar (las tareas y la semana siempre van arriba). */
+export const TODAY_BLOCKS: { id: HomeModule; label: string }[] = [
+  { id: 'habits', label: 'Hábitos' },
+  { id: 'journal', label: 'Journal del día' },
+  { id: 'english', label: 'Inglés' },
+  { id: 'pomodoro', label: 'Foco' },
+  { id: 'quote', label: 'Frase del día' },
+  { id: 'artwork', label: 'Obra del día' },
+];
+
+/** Orden de los bloques de «Hoy» según lo que eligió el usuario. */
+export function todayOrder(l: HomeLayout): HomeModule[] {
+  const ids = TODAY_BLOCKS.map((b) => b.id);
+  const ordered = l.modules.map((m) => m.id).filter((id) => ids.includes(id));
+  return [...ordered, ...ids.filter((id) => !ordered.includes(id))];
+}

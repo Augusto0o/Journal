@@ -5,7 +5,7 @@
 
 const ALLOWED_TAGS = new Set([
   'P', 'DIV', 'BR', 'STRONG', 'B', 'EM', 'I', 'U', 'S', 'UL', 'OL', 'LI', 'A',
-  'H2', 'H3', 'BLOCKQUOTE', 'HR', 'IMG', 'SPAN', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD',
+  'H1', 'H2', 'H3', 'PRE', 'BLOCKQUOTE', 'HR', 'IMG', 'SPAN', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD',
 ]);
 const DROP_WITH_CONTENT = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'TEMPLATE', 'NOSCRIPT', 'SVG', 'MATH', 'META', 'LINK', 'HEAD', 'TITLE']);
 
@@ -149,7 +149,7 @@ export function htmlToText(html: string, cacheKey?: string): string {
   }
   const withBreaks = html
     .replace(/<(br|hr)\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|li|h2|h3|blockquote|tr)>/gi, '\n')
+    .replace(/<\/(p|div|li|h1|h2|h3|pre|blockquote|tr)>/gi, '\n')
     .replace(/<\/(td|th)>/gi, ' · ')
     .replace(/<img[^>]*>/gi, ' ');
   const doc = new DOMParser().parseFromString(withBreaks, 'text/html');

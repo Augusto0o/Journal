@@ -5,6 +5,7 @@ import { useFeedback } from '@/components/ui';
 import { Dock } from '@/components/navigation/Dock';
 import { FocusPill } from '@/components/navigation/FocusPill';
 import { CaptureProvider } from '@/components/capture/CaptureSheet';
+import { NewMenuProvider, useNewMenu } from '@/components/capture/NewMenu';
 import { useAppearance, usePomodoro, useSettings, useStore } from '@/hooks/useData';
 import { useVisualViewport } from '@/hooks/useVisualViewport';
 import { chime, isRunning, PHASE_LABEL, pomoSettings, reconcile } from '@/services/pomodoro';
@@ -12,6 +13,8 @@ import type { Appearance } from '@/types';
 
 import Today from '@/pages/Today';
 const Notebook = lazy(() => import('@/pages/Notebook'));
+const Share = lazy(() => import('@/pages/Share'));
+const Movies = lazy(() => import('@/pages/Movies'));
 const EntryEditor = lazy(() => import('@/pages/EntryEditor'));
 const Reader = lazy(() => import('@/pages/Reader'));
 const Library = lazy(() => import('@/pages/Library'));
@@ -104,7 +107,7 @@ function usePomodoroEngine() {
   }, [running, endsAt, toast]);
 }
 
-const NO_DOCK = [/^\/mapas\/[^/]+/, /^\/pdf\//, /^\/asistente/, /^\/grafo/, /^\/ingles\/(leccion|repaso)/, /^\/journal\/[^/]+/, /^\/biblioteca\/nota\//, /^\/bienvenida/, /^\/pomodoro/];
+const NO_DOCK = [/^\/mapas\/[^/]+/, /^\/pdf\//, /^\/asistente/, /^\/grafo/, /^\/ingles\/(leccion|repaso)/, /^\/journal\/[^/]+/, /^\/biblioteca\/nota\//, /^\/bienvenida/, /^\/pomodoro/, /^\/compartir/, /^\/buscar/];
 
 const OLD_SETTINGS: Record<string, string> = { apariencia: 'apariencia', inicio: 'hoy', ia: 'ia', sincronizacion: 'sync', atajos: 'atajos', datos: 'datos', general: 'general' };
 function SettingsRedirect() {
@@ -140,8 +143,8 @@ function Shell() {
 
   return (
     <CaptureProvider>
-      {(openCapture) => (
-        <>
+      {() => (
+        <NewMenuProvider>
           <Suspense fallback={<div className="page" aria-busy="true" />}>
             <Routes>
               <Route path="/" element={<Today />} />
@@ -170,6 +173,8 @@ function Shell() {
               <Route path="/ingles/palabras" element={<EnglishWords />} />
               <Route path="/ingles/diario" element={<JournalPractice />} />
               <Route path="/bienvenida" element={<Onboarding />} />
+              <Route path="/compartir" element={<Share />} />
+              <Route path="/peliculas" element={<Movies />} />
               {/* Rutas viejas: se unieron en Hoy, Cuaderno, Biblioteca, Buscar y Ajustes. */}
               <Route path="/journal" element={<Navigate to="/cuaderno" replace />} />
               <Route path="/mapas" element={<Navigate to="/cuaderno" replace />} />
@@ -184,11 +189,16 @@ function Shell() {
             </Routes>
           </Suspense>
           {!hideDock && <FocusPill />}
-          <Dock onCapture={openCapture} hidden={hideDock} />
-        </>
+          <DockNew hidden={hideDock} />
+        </NewMenuProvider>
       )}
     </CaptureProvider>
   );
+}
+
+function DockNew({ hidden }: { hidden: boolean }) {
+  const menu = useNewMenu();
+  return <Dock onCapture={() => menu.open()} hidden={hidden} />;
 }
 
 export default function App() {

@@ -227,6 +227,14 @@ export async function saveCapture(c: CaptureInput): Promise<{ kind: string; id: 
   const text = c.text.trim();
   const imageHtml = c.imageDataUrl ? `<img src="${c.imageDataUrl}" alt="">` : '';
   const bodyHtml = imageHtml + (text ? textToHtml(text) : '');
+  // Un enlace de YouTube / YouTube Music va a la Biblioteca.
+  if ((c.type === 'link' || c.type === 'note') && !c.imageDataUrl) {
+    const { saveYouTubeLink, youtubeKind } = await import('./media');
+    if (youtubeKind(text) && text.split(/\s+/).length <= 12) {
+      const m = await saveYouTubeLink(text);
+      if (m) return { kind: 'media', id: m.id };
+    }
+  }
   switch (c.type) {
     case 'task': {
       const t = await createTask(text, { category: c.category ?? null });

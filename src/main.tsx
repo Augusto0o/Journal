@@ -11,6 +11,15 @@ import './styles/components.css';
 import './styles/screens.css';
 import './styles/sections.css';
 import './styles/v3.css';
+import '@/services/player';
+
+// Sin zoom en la app (iOS ignora user-scalable en algunos casos). El dibujo tiene su propio zoom.
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+document.addEventListener('touchmove', (e) => {
+  if (e.touches.length > 1 && !(e.target as Element | null)?.closest?.('.draw-canvas, .map-canvas, .graph-canvas')) e.preventDefault();
+}, { passive: false });
 
 void store.init().then(async () => {
   const { runMigrations } = await import('@/services/migrate');
