@@ -1166,3 +1166,52 @@
 .shelf { list-style: none; margin: 0; padding: 0; }
 .nb-list > li::before,
 .shelf > li::before { content: none; }
+
+/* ---------- Deslizar para acciones (Cuaderno) ---------- */
+.swipe {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.swipe-actions {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+}
+
+.swipe-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 76px;
+  height: 100%;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.swipe-btn.is-accent { background: var(--accent); color: var(--accent-ink); }
+.swipe-btn.is-danger { background: var(--danger); color: oklch(0.99 0 0); }
+.swipe-btn:active { filter: brightness(0.9); }
+
+.swipe-front {
+  position: relative;
+  background: var(--surface);
+  transition: transform 320ms var(--ease-drawer);
+  will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.swipe-front.is-dragging { transition: none; }
+.nb-kind.is-pin { color: var(--accent-text); }
+a.settings-head { text-decoration: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .swipe-front { transition-duration: 1ms; }
+}

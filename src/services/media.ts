@@ -157,39 +157,87 @@ export function tasteProfile(items: MediaItem[], extra: string[] = []): string {
   ].filter(Boolean).join('\n');
 }
 
-// ---------------- Obra del día (Art Institute of Chicago, dominio público) ----------------
+// ---------------- Obra del día (Cleveland Museum of Art, Open Access CC0) ----------------
+// Antes se usaba el Art Institute of Chicago, pero su servidor de imágenes bloquea
+// (403) las imágenes enlazadas desde otras apps. Cleveland sirve imágenes abiertas.
 
-export interface Artwork { id: number; title: string; artist: string; year: string; museum: string; image: string; thumb: string; story: string; context: string; url: string }
+export interface Artwork { id: number | string; title: string; artist: string; year: string; museum: string; image: string; thumb: string; story: string; context: string; url: string }
 
-type AicArt = { id: number; title: string; artist_display?: string; artist_title?: string; date_display?: string; image_id?: string; short_description?: string | null; description?: string | null; medium_display?: string; place_of_origin?: string; credit_line?: string };
+type CmaArt = {
+  id: number;
+  title: string;
+  creation_date?: string;
+  creators?: { description?: string; role?: string }[];
+  culture?: string[];
+  technique?: string;
+  description?: string | null;
+  did_you_know?: string | null;
+  url?: string;
+  images?: { web?: { url?: string }; print?: { url?: string } };
+};
 
 const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 
-export async function fetchArtwork(seed: number): Promise<Artwork> {
-  const page = (seed % 90) + 1;
-  const fields = 'id,title,artist_display,artist_title,date_display,image_id,short_description,description,medium_display,place_of_origin';
-  const params = {
-    query: { bool: { must: [{ term: { is_public_domain: true } }, { exists: { field: 'description' } }, { exists: { field: 'image_id' } }, { term: { 'classification_titles.keyword': 'painting' } }] } },
-    fields: fields.split(','),
-    limit: 10,
-    page,
+/** Traduce al español: con tu IA si está activa; si no, con un traductor público gratuito. */
+export async function toSpanish(texts: string[]): Promise<string[]> {
+  const items = texts.map((t) => t.trim());
+  const one = async (t: string): Promise<string> => {
+    if (!t) return t;
+    try {
+      const { aiAvailable, transform } = await import('./ai');
+      if (aiAvailable()) return (await transform('translate_es', t)).trim() || t;
+    } catch {
+      /* sigue con el traductor público */
+    }
+    try {
+      const r = await direct<unknown[]>(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=es&dt=t&q=${encodeURIComponent(t)}`, 8000);
+      const parts = (r[0] as [string][] | null) ?? [];
+      const out = parts.map((p) => p[0]).join('').trim();
+      if (out) return out;
+    } catch {
+      /* siguiente opción */
+    }
+    try {
+      const r = await direct<{ responseData?: { translatedText?: string } }>(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(t.slice(0, 480))}&langpair=en|es`, 8000);
+      return r.responseData?.translatedText?.trim() || t;
+    } catch {
+      return t;
+    }
   };
-  const r = await getJSON<{ data: AicArt[] }>(`https://api.artic.edu/api/v1/artworks/search?params=${encodeURIComponent(JSON.stringify(params))}`);
-  const withImg = r.data.filter((a) => a.image_id);
-  const a = withImg[seed % Math.max(1, withImg.length)] ?? withImg[0];
+  return Promise.all(items.map(one));
+}
+
+/** Nombre del artista a partir de «Claude Monet (French, 1840–1926)». */
+function artistName(d?: string) {
+  if (!d) return 'Artista desconocido';
+  return d.split(/\s*\(/)[0].trim() || d;
+}
+
+export async function fetchArtwork(seed: number): Promise<Artwork> {
+  const skip = Math.abs(seed * 37) % 1800;
+  const r = await getJSON<{ data: CmaArt[] }>(
+    `https://openaccess-api.clevelandart.org/api/artworks/?type=Painting&has_image=1&cc0=1&limit=25&skip=${skip}&fields=id,title,creation_date,creators,culture,technique,description,did_you_know,url,images`,
+  );
+  const pool = r.data.filter((a) => a.images?.web?.url);
+  const withText = pool.filter((a) => a.description || a.did_you_know);
+  const list = withText.length ? withText : pool;
+  const a = list[seed % Math.max(1, list.length)] ?? list[0];
   if (!a) throw new Error('Sin obra disponible');
   const desc = stripHtml(a.description ?? '');
-  const sentences = desc.split(/(?<=[.!?])\s+/);
+  const fact = stripHtml(a.did_you_know ?? '');
+  const creator = a.creators?.find((c) => c.role === 'artist') ?? a.creators?.[0];
+  const origin = creator?.description?.match(/\(([^)]+)\)/)?.[1] ?? a.culture?.[0] ?? '';
+  const [title, story, context, technique, from] = await toSpanish([a.title, desc, fact, a.technique ?? '', origin]);
   return {
     id: a.id,
-    title: a.title,
-    artist: a.artist_title ?? a.artist_display?.split('\n')[0] ?? 'Artista desconocido',
-    year: a.date_display ?? '',
-    museum: 'Art Institute of Chicago',
-    image: `https://www.artic.edu/iiif/2/${a.image_id}/full/843,/0/default.jpg`,
-    thumb: `https://www.artic.edu/iiif/2/${a.image_id}/full/400,/0/default.jpg`,
-    story: stripHtml(a.short_description ?? '') || sentences.slice(0, 2).join(' '),
-    context: [a.medium_display, a.place_of_origin].filter(Boolean).join(' · ') + (sentences.length > 2 ? `\n\n${sentences.slice(2, 6).join(' ')}` : ''),
-    url: `https://www.artic.edu/artworks/${a.id}`,
+    title,
+    artist: artistName(creator?.description),
+    year: a.creation_date ?? '',
+    museum: 'Cleveland Museum of Art',
+    image: a.images?.print?.url ?? a.images!.web!.url!,
+    thumb: a.images!.web!.url!,
+    story,
+    context: [[technique, from].filter(Boolean).join(' · '), context ? `¿Sabías que…? ${context}` : ''].filter(Boolean).join('\n\n'),
+    url: a.url ?? `https://www.clevelandart.org/art/${a.id}`,
   };
 }

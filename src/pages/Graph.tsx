@@ -38,7 +38,7 @@ export default function Graph() {
   if (g.nodes.length < 2) {
     return (
       <main className="page">
-        <NavBar back="/buscar" backLabel="Buscar" title="Grafo de conocimiento" />
+        <NavBar back="/cuaderno" backLabel="Cuaderno" title="Grafo de conocimiento" />
         <Empty title="Tu grafo empieza a crecer con lo que guardás" message="Las entradas, notas, libros, PDFs y mapas se conectan solos por etiquetas, enlaces y temas en común. Probá vincular una nota a un libro o crear un mapa desde un texto." />
       </main>
     );
@@ -46,7 +46,7 @@ export default function Graph() {
 
   return (
     <main className="graph-page">
-      <NavBar back="/buscar" backLabel="Buscar" title="Grafo de conocimiento" />
+      <NavBar back="/cuaderno" backLabel="Cuaderno" title="Grafo de conocimiento" />
       <div className="graph-legend">
         {kinds.map((k) => (
           <button key={k} type="button" className="chip" aria-pressed={filter === k} onClick={() => setFilter(filter === k ? null : k)}>

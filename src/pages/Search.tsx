@@ -6,7 +6,6 @@ import { store } from '@/database/store';
 import { buildDocs, search, type SearchDoc, type SearchKind } from '@/services/queries';
 import { aiProblem, semanticSearch } from '@/services/ai';
 import { QUOTES } from '@/services/quotes';
-import { findSections, GROUP_ORDER, SECTIONS } from '@/services/sections';
 import { formatRelativeDay } from '@/utils/date';
 import type { IconName } from '@/components/ui';
 
@@ -27,10 +26,7 @@ export function linkFor(d: Pick<SearchDoc, 'kind' | 'id'> & { tags?: string[] })
   }
 }
 
-/**
- * «Buscar o preguntar»: una sola barra para encontrar contenido, ir a
- * cualquier sección (lo que antes era «Todo») y preguntarle a la IA.
- */
+/** «Buscar o preguntar»: busca en tu contenido y le pregunta a la IA. Solo eso. */
 export default function Search() {
   const snap = useStore();
   const [settings] = useSettings();
@@ -45,7 +41,6 @@ export default function Search() {
 
   const docs = useMemo(() => buildDocs(snap, QUOTES, 'all'), [snap]);
   const { hits, intent } = useMemo(() => (t ? search(t, docs, settings.weekStartsOn) : { hits: [], intent: null }), [t, docs, settings.weekStartsOn]);
-  const sections = useMemo(() => findSections(t, 4), [t]);
 
   useEffect(() => {
     if (t.length < 3) return;
@@ -73,9 +68,9 @@ export default function Search() {
 
   return (
     <main className="page command">
-      <form className="command-bar" onSubmit={(e) => { e.preventDefault(); if (t && !hits.length && !sections.length && !problem) ask(); }}>
+      <form className="command-bar" onSubmit={(e) => { e.preventDefault(); if (t && !hits.length && !problem) ask(); }}>
         <Icon name="search" size={19} />
-        <input type="search" autoFocus placeholder="Buscar, ir a… o preguntar" value={q} onChange={(e) => { setQ(e.target.value); setAi(null); }} enterKeyHint="search" aria-label="Buscar o preguntar" />
+        <input type="search" autoFocus placeholder="Buscar en lo tuyo o preguntar" value={q} onChange={(e) => { setQ(e.target.value); setAi(null); }} enterKeyHint="search" aria-label="Buscar o preguntar" />
         {q && <button type="button" className="command-clear" aria-label="Borrar" onClick={() => setQ('')}><Icon name="x" size={14} strokeWidth={2.4} /></button>}
       </form>
 
@@ -103,20 +98,6 @@ export default function Search() {
             </section>
           )}
 
-          {GROUP_ORDER.map((g) => (
-            <section key={g} className="block">
-              <div className="block-head"><h2>{g}</h2></div>
-              <div className="list">
-                {SECTIONS.filter((s) => s.group === g && !s.path.includes('#') && !s.path.includes('?')).map((s) => (
-                  <Link key={s.id} to={s.path} className="plain-row">
-                    <Icon name={s.icon} size={17} />
-                    <span className="grow">{s.label}</span>
-                    <span className="plain-row-sub">{s.description}</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ))}
         </>
       ) : (
         <>
@@ -129,19 +110,6 @@ export default function Search() {
               </span>
               <Icon name="arrowRight" size={18} />
             </button>
-          )}
-
-          {sections.length > 0 && (
-            <section className="block">
-              <div className="block-head"><h2>Ir a</h2></div>
-              <div className="list">
-                {sections.map((s) => (
-                  <Link key={s.id} to={s.path} className="plain-row">
-                    <Icon name={s.icon} size={17} /><span className="grow">{s.label}</span><span className="plain-row-sub">{s.description}</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
           )}
 
           {intent && <p className="group-foot mt-4">Filtrando por fecha: {intent.label.toLowerCase()}</p>}
@@ -167,7 +135,7 @@ export default function Search() {
             </section>
           )}
 
-          {!hits.length && !sections.length && !ai && <p className="quiet mt-6">Nada con esas palabras. Probá preguntarle a la IA o buscar por significado.</p>}
+          {!hits.length && !ai && <p className="quiet mt-6">Nada con esas palabras. Probá preguntarle a la IA o buscar por significado.</p>}
         </>
       )}
     </main>

@@ -32,8 +32,8 @@ export default function Vault() {
   return (
     <main className="page">
       <NavBar
-        back="/buscar"
-        backLabel="Buscar"
+        back="/ajustes"
+        backLabel="Ajustes"
         title="Contraseñas"
         end={v.unlocked ? (
           <>

@@ -4,7 +4,10 @@ import { BottomSheet, Empty, Icon, IconButton, SheetAction, useFeedback, type Ic
 import { useStore, useToday } from '@/hooks/useData';
 import { newMap, saveMap } from '@/services/maps';
 import { createMapFromText } from '@/services/visual';
-import { deleteFolder, saveFolder } from '@/services/actions';
+import { deleteEntry, deleteFolder, deleteNote, patchNote, saveFolder } from '@/services/actions';
+import { deleteMap } from '@/services/maps';
+import { deletePdf } from '@/services/pdf';
+import { SwipeRow, type SwipeAction } from '@/components/entries/SwipeRow';
 import { importPdf } from '@/services/pdf';
 import { excerpt, htmlToText, normalize } from '@/utils/html';
 import { MONTHS, capitalize, parseISODate, WEEKDAYS } from '@/utils/date';
@@ -89,6 +92,33 @@ export default function Notebook() {
     return g;
   }, [items, today]);
 
+  const remove = async (it: Item) => {
+    const what = it.kind === 'journal' ? 'la entrada' : it.kind === 'map' ? 'el mapa' : it.kind === 'pdf' ? 'el PDF' : 'la nota';
+    if (!(await confirm({ title: `¿Eliminar ${what}?`, message: it.title || undefined, confirmLabel: 'Eliminar', danger: true }))) return;
+    if (it.kind === 'journal') await deleteEntry(it.id);
+    else if (it.kind === 'map') await deleteMap(it.id);
+    else if (it.kind === 'pdf') await deletePdf(it.id);
+    else await deleteNote(it.id);
+  };
+
+  const actionsFor = (it: Item): SwipeAction[] => {
+    const del: SwipeAction = { id: 'del', label: 'Eliminar', icon: 'trash', tone: 'danger', onAction: () => void remove(it) };
+    if (it.kind === 'journal' || it.kind === 'map' || it.kind === 'pdf') return [del];
+    return [
+      { id: 'pin', label: it.pinned ? 'Soltar' : 'Anclar', icon: 'pin', tone: 'accent', onAction: () => { void patchNote(it.id, { isPinned: !it.pinned }); } },
+      {
+        id: 'arch',
+        label: archived ? 'Sacar' : 'Archivar',
+        icon: 'archive',
+        onAction: () => {
+          void patchNote(it.id, { isArchived: !archived, ...(archived ? {} : { isPinned: false }) });
+          toast(archived ? 'Volvió al cuaderno' : 'Archivada', { action: { label: 'Deshacer', onClick: () => void patchNote(it.id, { isArchived: archived, isPinned: it.pinned }) } });
+        },
+      },
+      del,
+    ];
+  };
+
   const archivedCount = snap.note.filter((n) => n.isArchived).length;
   const title = folder ? folder.name : archived ? 'Archivo' : 'Cuaderno';
   const sub = folderId || archived;
@@ -98,6 +128,7 @@ export default function Notebook() {
       <header className="today-head">
         {sub && <IconButton icon="arrowLeft" label="Volver" tone="filled" onClick={() => setParams({}, { replace: true })} />}
         <h1 className="today-title grow">{title}</h1>
+        {!sub && <IconButton icon="graph" label="Grafo de conexiones" tone="filled" onClick={() => navigate('/grafo')} />}
         {folder && <IconButton icon="more" label="Carpeta" tone="filled" onClick={() => { setFolderName(folder.name); setSheet('folder'); }} />}
         {!archived && <IconButton icon="plus" label="Nuevo" tone="filled" onClick={() => setSheet('new')} />}
       </header>
@@ -121,7 +152,8 @@ export default function Notebook() {
                 const d = parseISODate(it.date);
                 return (
                   <li key={`${it.kind}-${it.id}`}>
-                    <Link to={it.path} className="nb-item">
+                    <SwipeRow actions={actionsFor(it)}>
+                    <Link to={it.path} className="nb-item" draggable={false}>
                       <span className="nb-date">
                         <span className="nb-day num">{d.getDate()}</span>
                         <span className="nb-wd">{WEEKDAYS[d.getDay()].slice(0, 3)}</span>
@@ -130,8 +162,9 @@ export default function Notebook() {
                         <span className="nb-title">{it.title || (it.kind === 'journal' ? 'Journal' : 'Sin título')}</span>
                         {it.text && <span className="nb-text clamp-2">{it.text}</span>}
                       </span>
-                      <Icon name={KIND[it.kind].icon} size={16} className="nb-kind" aria-label={KIND[it.kind].label} />
+                      {it.pinned ? <Icon name="pin" size={15} className="nb-kind is-pin" aria-label="Anclada" /> : <Icon name={KIND[it.kind].icon} size={16} className="nb-kind" aria-label={KIND[it.kind].label} />}
                     </Link>
+                    </SwipeRow>
                   </li>
                 );
               })}

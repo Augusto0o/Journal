@@ -4,8 +4,8 @@ import { Icon, type IconName } from '@/components/ui/Icon';
 import { cx } from '@/utils/misc';
 
 const TABS: { to: string; label: string; icon: IconName; match: (p: string) => boolean }[] = [
-  { to: '/', label: 'Hoy', icon: 'sun', match: (p) => p === '/' || p.startsWith('/habitos') || p.startsWith('/ingles') || p.startsWith('/pomodoro') },
-  { to: '/cuaderno', label: 'Cuaderno', icon: 'journal', match: (p) => p.startsWith('/cuaderno') || p.startsWith('/journal') || p.startsWith('/mapas') || p.startsWith('/pdf') },
+  { to: '/', label: 'Hoy', icon: 'sun', match: (p) => p === '/' || p.startsWith('/habitos') || p.startsWith('/ajustes') || p.startsWith('/contrasenas') || p.startsWith('/frases') || p.startsWith('/ingles') || p.startsWith('/pomodoro') },
+  { to: '/cuaderno', label: 'Cuaderno', icon: 'journal', match: (p) => p.startsWith('/cuaderno') || p.startsWith('/journal') || p.startsWith('/mapas') || p.startsWith('/pdf') || p.startsWith('/grafo') },
   { to: '/biblioteca', label: 'Biblioteca', icon: 'library', match: (p) => p.startsWith('/biblioteca') || p.startsWith('/descubrir') || p.startsWith('/arte') },
 ];
 

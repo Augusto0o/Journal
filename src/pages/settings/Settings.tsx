@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Icon, NavBar, Switch, type IconName } from '@/components/ui';
 import { useHome, useSettings, useSync } from '@/hooks/useData';
 import { relativeTime } from '@/utils/date';
@@ -94,6 +94,16 @@ export default function Settings() {
             </section>
           );
         })}
+      </div>
+      <div className="settings-list mt-6">
+        <Link to="/contrasenas" className="settings-item settings-head">
+          <span className="settings-icon"><Icon name="key" size={18} /></span>
+          <span className="grow">
+            <span className="settings-label">Contraseñas</span>
+            <span className="settings-sub">Bóveda cifrada en este dispositivo</span>
+          </span>
+          <Icon name="chevronRight" size={16} className="settings-chev" />
+        </Link>
       </div>
       <p className="group-foot" style={{ textAlign: 'center', marginTop: 28 }}>Personal OS · tus datos viven en este dispositivo{sync.userId ? ' y en tu Supabase' : ''}.</p>
     </main>
