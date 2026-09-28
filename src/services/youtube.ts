@@ -48,7 +48,26 @@ export async function ytConnect() {
   location.href = url;
 }
 
-export const ytPlaylists = () => call<{ items: YtPlaylist[] }>({ action: 'playlists' }).then((r) => r.items);
+let listsCache: YtPlaylist[] | null = null;
+export async function ytPlaylists(fresh = false) {
+  if (listsCache && !fresh) return listsCache;
+  listsCache = await call<{ items: YtPlaylist[] }>({ action: 'playlists' }).then((r) => r.items);
+  return listsCache;
+}
+
+/** Lo que escuchás en YouTube Music (me gusta + tus listas), para recomendar a partir de eso. */
+let tasteCache: { at: number; items: { title: string; artist: string }[] } | null = null;
+export async function ytTaste() {
+  if (tasteCache && Date.now() - tasteCache.at < 30 * 60_000) return tasteCache.items;
+  const r = await call<{ items: { title: string; artist: string }[] }>({ action: 'taste' });
+  tasteCache = { at: Date.now(), items: r.items };
+  return r.items;
+}
+
+/** Busca un video (por ejemplo, el tráiler de una película). */
+export const ytFind = (query: string) => call<{ videoId: string | null; title: string | null }>({ action: 'find', query });
+
+export const ytConnected = () => Boolean(ytCached()?.connected);
 
 export async function ytSetPlaylist(p: { id: string; title: string } | null, auto?: boolean) {
   await call({ action: 'set-playlist', id: p?.id ?? null, title: p?.title ?? null, auto });
@@ -66,9 +85,10 @@ function videoIdOf(m: MediaItem): string | null {
 }
 
 /** Agrega la canción a tu lista. Con un enlace de YouTube usa ese video; si no, la busca por título y artista. */
-export async function ytAdd(m: MediaItem) {
-  const videoId = videoIdOf(m);
-  return call<{ ok: boolean; playlist: string }>(videoId ? { action: 'add', videoId } : { action: 'add', query: `${m.title} ${m.creator}`.trim() });
+export async function ytAdd(m: Pick<MediaItem, 'title' | 'creator' | 'meta'>, list?: { id: string; title: string }) {
+  const videoId = videoIdOf(m as MediaItem);
+  const target = list ? { playlistId: list.id, playlistTitle: list.title } : {};
+  return call<{ ok: boolean; playlist: string }>(videoId ? { action: 'add', videoId, ...target } : { action: 'add', query: `${m.title} ${m.creator}`.trim(), ...target });
 }
 
 export const ytReady = () => {

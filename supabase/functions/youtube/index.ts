@@ -129,12 +129,43 @@ Deno.serve(async (req) => {
         return json({ ok: true });
 
       case "add": {
-        if (!link?.refresh_token || !link.playlist_id) return json({ error: "Elegí tu lista de YouTube Music en Ajustes → YouTube Music." }, 400);
+        const target = p.playlistId ? String(p.playlistId) : link?.playlist_id;
+        if (!link?.refresh_token || !target) return json({ error: "Elegí una lista de YouTube Music." }, 400);
         const token = await accessToken(link.refresh_token);
         const videoId = p.videoId ? String(p.videoId) : p.query ? await findSong(token, String(p.query)) : null;
         if (!videoId) return json({ error: "No encontré esa canción en YouTube." }, 404);
-        await yt(token, "playlistItems?part=snippet", { method: "POST", body: JSON.stringify({ snippet: { playlistId: link.playlist_id, resourceId: { kind: "youtube#video", videoId } } }) });
-        return json({ ok: true, videoId, playlist: link.playlist_title });
+        await yt(token, "playlistItems?part=snippet", { method: "POST", body: JSON.stringify({ snippet: { playlistId: target, resourceId: { kind: "youtube#video", videoId } } }) });
+        return json({ ok: true, videoId, playlist: p.playlistId ? String(p.playlistTitle ?? "tu lista") : link.playlist_title });
+      }
+
+      case "taste": {
+        // Lo que escuchás en YouTube Music: canciones con «me gusta» y las de tus listas (1 unidad de cupo por pedido).
+        if (!link?.refresh_token) return json({ items: [] });
+        const token = await accessToken(link.refresh_token);
+        const lists = await yt(token, "playlists?part=id&mine=true&maxResults=6").catch(() => ({ items: [] }));
+        const ids = ["LL", ...(lists.items ?? []).map((l: { id: string }) => l.id)].slice(0, 5);
+        const seen = new Set<string>();
+        const items: { title: string; artist: string }[] = [];
+        for (const id of ids) {
+          const j = await yt(token, `playlistItems?part=snippet&maxResults=25&playlistId=${id}`).catch(() => ({ items: [] }));
+          for (const it of j.items ?? []) {
+            const title = String(it.snippet?.title ?? "");
+            const artist = String(it.snippet?.videoOwnerChannelTitle ?? "").replace(/\s*-\s*Topic$/i, "");
+            if (!title || /^(Private|Deleted) video$/i.test(title) || seen.has(title)) continue;
+            seen.add(title);
+            items.push({ title, artist });
+          }
+        }
+        return json({ items: items.slice(0, 80) });
+      }
+
+      case "find": {
+        // Un video por búsqueda (trailers, canciones sueltas). 100 unidades de cupo.
+        if (!link?.refresh_token) return json({ error: "Conectá YouTube Music para buscar videos." }, 400);
+        const token = await accessToken(link.refresh_token);
+        const j = await yt(token, `search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(String(p.query ?? ""))}`);
+        const it = j.items?.[0];
+        return json({ videoId: it?.id?.videoId ?? null, title: it?.snippet?.title ?? null });
       }
 
       case "disconnect":

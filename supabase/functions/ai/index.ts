@@ -31,10 +31,10 @@ type Action =
   | "summarize" | "simplify" | "reformulate" | "correct" | "structure" | "explain" | "translate_en" | "translate_es"
   | "extract_tasks" | "classify" | "search" | "voice_extract" | "transcribe" | "lookup"
   | "english_correct" | "english_speaking" | "english_day" | "english_lesson"
-  | "visualize" | "ask" | "assistant" | "recommend" | "image" | "tmdb";
+  | "visualize" | "ask" | "assistant" | "recommend" | "image" | "tmdb" | "about";
 
 const TEXT_ACTIONS = ["summarize", "simplify", "reformulate", "correct", "structure", "explain", "translate_en", "translate_es"];
-const JSON_ACTIONS = ["extract_tasks", "classify", "search", "voice_extract", "english_correct", "english_speaking", "english_day", "english_lesson", "visualize", "ask", "assistant", "recommend"];
+const JSON_ACTIONS = ["extract_tasks", "classify", "search", "voice_extract", "english_correct", "english_speaking", "english_day", "english_lesson", "visualize", "ask", "assistant", "recommend", "about"];
 
 interface Payload {
   action: Action;
@@ -173,6 +173,11 @@ Respondé de forma breve y útil. Si el pedido implica una acción, proponela en
 - {"type":"search","query":"..."}
 Si piden resumir, explicar, corregir, reformular, traducir, convertir en tabla u organizar ideas, hacelo directamente en "reply" (Markdown; tablas con | columnas |).
 Formato: {"reply":"...","actions":[...]}`;
+    case "about":
+      return `${common}
+Contá de qué trata la obra (libro o película) indicada, para alguien que está decidiendo si leerla o verla. Usá lo que sepas de la obra real; la sinopsis dada es solo una ayuda. Si no la conocés, basate en la sinopsis y no inventes datos.
+En español con voseo rioplatense, sin spoilers del final. 120-180 palabras en "summary": el planteo, los temas principales y el tono. En "forWho", una frase: a quién le puede gustar.
+Formato: {"summary":"...","forWho":"..."}`;
     case "recommend":
       return `${common}
 Recomendá contenido del tipo "${p.mediaKind ?? "music"}" según el perfil de gustos del usuario (texto). Mezclá afinidad con algo de descubrimiento. No repitas lo que ya tiene ni lo descartado.
@@ -207,21 +212,47 @@ class ProviderError extends Error {
   }
 }
 
+// Cada modelo (y cada clave de otro proyecto de Google) tiene su propio cupo gratuito:
+// si uno se agota, se prueba el siguiente antes de pasar a otro proveedor.
+const GEMINI_KEYS = [GEMINI_API_KEY, env("GEMINI_API_KEY_2"), env("GEMINI_API_KEY_3")].filter(Boolean);
+const GEMINI_MODELS = [...new Set([GEMINI_MODEL, "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"])];
+const GROQ_MODELS = [...new Set([GROQ_MODEL, "llama-3.3-70b-versatile", "openai/gpt-oss-20b", "meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.1-8b-instant"])];
+const cooling = new Map<string, number>(); // "proveedor:clave:modelo" → hasta cuándo no probarlo
+const skip = (id: string) => (cooling.get(id) ?? 0) > Date.now();
+const cool = (id: string, status: number) => cooling.set(id, Date.now() + (status === 429 ? 60_000 : 10 * 60_000));
+// Errores que justifican probar otro modelo: sin cupo, modelo inexistente o caído.
+const nextModel = (status: number) => status === 429 || status === 404 || status === 400 || status >= 500;
+
 async function gemini(system: string, user: string, wantJSON: boolean): Promise<string> {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: "user", parts: [{ text: user }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 4096, ...(wantJSON ? { responseMimeType: "application/json" } : {}) },
-    }),
-  });
-  if (!res.ok) throw new ProviderError(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const data = await res.json();
-  const text = (data.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("");
-  if (!text) throw new ProviderError("Gemini devolvió una respuesta vacía");
-  return text;
+  let last = "Gemini sin respuesta";
+  for (const [ki, key] of GEMINI_KEYS.entries()) {
+    for (const model of GEMINI_MODELS) {
+      const id = `gemini:${ki}:${model}`;
+      if (skip(id)) continue;
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 4096, ...(wantJSON ? { responseMimeType: "application/json" } : {}) },
+        }),
+      });
+      if (!res.ok) {
+        last = `Gemini ${res.status} (${model}): ${(await res.text()).slice(0, 200)}`;
+        if (nextModel(res.status)) {
+          cool(id, res.status);
+          continue;
+        }
+        throw new ProviderError(last);
+      }
+      const data = await res.json();
+      const text = (data.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("");
+      if (text) return text;
+      last = `Gemini devolvió una respuesta vacía (${model})`;
+    }
+  }
+  throw new ProviderError(last);
 }
 
 async function geminiTranscribe(audio: string, mime: string, language?: string): Promise<string> {
@@ -245,22 +276,35 @@ async function geminiTranscribe(audio: string, mime: string, language?: string):
 }
 
 async function groq(system: string, user: string, wantJSON: boolean): Promise<string> {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "content-type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      temperature: 0.3,
-      max_completion_tokens: 4096,
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
-      ...(wantJSON ? { response_format: { type: "json_object" } } : {}),
-    }),
-  });
-  if (!res.ok) throw new ProviderError(`Groq ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const data = await res.json();
-  const text = data.choices?.[0]?.message?.content ?? "";
-  if (!text) throw new ProviderError("Groq devolvió una respuesta vacía");
-  return text;
+  let last = "Groq sin respuesta";
+  for (const model of GROQ_MODELS) {
+    const id = `groq:${model}`;
+    if (skip(id)) continue;
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model,
+        temperature: 0.3,
+        max_completion_tokens: 4096,
+        messages: [{ role: "system", content: system }, { role: "user", content: user }],
+        ...(wantJSON ? { response_format: { type: "json_object" } } : {}),
+      }),
+    });
+    if (!res.ok) {
+      last = `Groq ${res.status} (${model}): ${(await res.text()).slice(0, 200)}`;
+      if (nextModel(res.status)) {
+        cool(id, res.status);
+        continue;
+      }
+      throw new ProviderError(last);
+    }
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content ?? "";
+    if (text) return text;
+    last = `Groq devolvió una respuesta vacía (${model})`;
+  }
+  throw new ProviderError(last);
 }
 
 async function groqTranscribe(audio: string, mime: string, language?: string): Promise<string> {
@@ -319,7 +363,7 @@ async function complete(p: Payload, system: string, user: string, wantJSON: bool
     }
   }
   throw new ProviderError(
-    errors.some((e) => / 429/.test(e)) ? "Se alcanzó el límite gratuito por hoy. Probá más tarde." : "Los proveedores de IA no respondieron.",
+    errors.some((e) => / 429/.test(e)) ? (CONFIGURED.groq ? "Se agotó el cupo gratuito de todos los modelos por ahora. Probá en un rato." : "Se agotó el cupo gratuito de Gemini. Agregá GROQ_API_KEY (gratis) en Supabase para tener respaldo.") : "Los proveedores de IA no respondieron.",
   );
 }
 
@@ -358,7 +402,7 @@ Deno.serve(async (req) => {
       if (!TMDB_API_KEY) return json({ error: "no_tmdb" }, 503);
       const q = p as unknown as { path?: string; params?: Record<string, string> };
       const path = String(q.path ?? "");
-      if (!/^(search\/movie|discover\/movie|genre\/movie\/list|movie\/\d+(\/watch\/providers|\/recommendations)?)$/.test(path)) return json({ error: "Ruta no permitida" }, 400);
+      if (!/^(search\/movie|discover\/movie|genre\/movie\/list|movie\/\d+(\/watch\/providers|\/recommendations|\/videos)?)$/.test(path)) return json({ error: "Ruta no permitida" }, 400);
       const u = new URL(`https://api.themoviedb.org/3/${path}`);
       for (const [k, v] of Object.entries(q.params ?? {})) u.searchParams.set(k, String(v));
       const bearer = TMDB_API_KEY.startsWith("ey");

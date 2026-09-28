@@ -261,3 +261,9 @@ export async function recommend(kind: 'music' | 'books' | 'videos' | 'topics' | 
 export async function tmdb<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
   return call<T>('tmdb', { path, params });
 }
+
+/** De qué trata un libro o una película (resumen sin spoilers + a quién le puede gustar). */
+export async function aboutWork(kind: 'libro' | 'película', title: string, creator: string, year?: string | null, synopsis?: string) {
+  const text = `${kind === 'libro' ? 'Libro' : 'Película'}: «${title}»${creator ? ` de ${creator}` : ''}${year ? ` (${year})` : ''}.${synopsis ? `\nSinopsis: ${synopsis.slice(0, 2000)}` : ''}`;
+  return call<{ summary: string; forWho?: string }>('about', { text });
+}
