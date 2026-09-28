@@ -11,7 +11,9 @@ import { newNote, saveNote } from '@/services/actions';
 import type { MediaItem, MediaStatus } from '@/types';
 import { relativeTime } from '@/utils/date';
 import { cx } from '@/utils/misc';
-import { ytAdd, ytAutoAdd, ytCached, ytReady } from '@/services/youtube';
+import { ytAutoAdd, ytConnected } from '@/services/youtube';
+import { PlaylistPicker } from '@/components/media/PlaylistPicker';
+import { BookAbout, CoverViewer } from '@/components/media/About';
 import { claimPlayback, isReleasing, releaseMedia } from '@/services/player';
 
 export function Cover({ src, kind, alt }: { src?: string | null; kind: 'book' | 'video' | 'music' | 'movie'; alt: string }) {
@@ -113,11 +115,12 @@ export function AddBook({ onDone }: { onDone: () => void }) {
 export function MediaDetail({ item, onClose }: { item: MediaItem; onClose: () => void }) {
   const snap = useStore();
   const navigate = useNavigate();
-  const { confirm, toast } = useFeedback();
+  const { confirm } = useFeedback();
   const [m, setM] = useState(item);
   useEffect(() => setM(item), [item]);
   const player = useRef<HTMLAudioElement>(null);
-  const [ytBusy, setYtBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [viewCover, setViewCover] = useState(false);
   useEffect(() => {
     const el = player.current;
     return () => {
@@ -136,13 +139,15 @@ export function MediaDetail({ item, onClose }: { item: MediaItem; onClose: () =>
   return (
     <div className="stack-lg">
       <div className="media-hero">
-        <Cover src={m.cover} kind={kind} alt={m.title} />
+        {m.cover ? <button type="button" className="cover-btn" onClick={() => setViewCover(true)} aria-label="Ver portada"><Cover src={m.cover} kind={kind} alt={m.title} /></button> : <Cover src={m.cover} kind={kind} alt={m.title} />}
         <div className="grow">
           <input className="media-hero-title" value={m.title} onChange={(e) => set({ title: e.target.value })} aria-label="Título" />
           <input className="media-hero-sub" value={m.creator} onChange={(e) => set({ creator: e.target.value })} placeholder={m.mediaType === 'book' ? 'Autor' : m.mediaType === 'video' ? 'Canal' : 'Artista'} aria-label="Autor" />
           {m.genre !== undefined && <input className="media-hero-sub" value={m.genre ?? ''} onChange={(e) => set({ genre: e.target.value || null })} placeholder="Género" aria-label="Género" />}
         </div>
       </div>
+
+      {m.mediaType === 'book' && <BookAbout key={m.id} title={m.title} creator={m.creator} meta={m.meta} cover={m.cover} onPatch={(p) => set(p)} />}
 
       {m.mediaType !== 'art' && <Segmented<MediaStatus> label="Estado" value={m.status} onChange={(v) => set({ status: v })} options={statuses.map((s) => ({ value: s.id, label: s.label }))} />}
 
@@ -165,20 +170,10 @@ export function MediaDetail({ item, onClose }: { item: MediaItem; onClose: () =>
 
       <div className="group-body">
         {m.url && <a className="row" href={m.url} target="_blank" rel="noopener noreferrer"><span className="row-main"><span className="row-label">{m.mediaType === 'video' ? 'Ver en YouTube' : m.mediaType === 'book' ? 'Ver ficha' : 'Abrir enlace'}</span></span><Icon name="arrowRight" size={18} /></a>}
-        {m.mediaType === 'music' && ytReady() && (
-          <button type="button" className="row is-accent" disabled={ytBusy} onClick={async () => {
-            setYtBusy(true);
-            try {
-              const r = await ytAdd(m);
-              toast(`Agregada a «${r.playlist}»`);
-            } catch (e) {
-              toast((e as Error).message, { tone: 'error' });
-            } finally {
-              setYtBusy(false);
-            }
-          }}>
-            <span className="row-main"><span className="row-label">Agregar a mi lista de YouTube Music</span><span className="row-sub">{ytCached()?.playlist?.title}</span></span>
-            {ytBusy ? <span className="spinner" /> : <Icon name="plus" size={18} />}
+        {m.mediaType === 'music' && ytConnected() && (
+          <button type="button" className="row is-accent" onClick={() => setPicking(true)}>
+            <span className="row-main"><span className="row-label">Agregar a una lista de YouTube Music</span><span className="row-sub">Elegís en cuál</span></span>
+            <Icon name="plus" size={18} />
           </button>
         )}
         {m.mediaType === 'music' && <a className="row" href={ytMusicSearch(m.title, m.creator)} target="_blank" rel="noopener noreferrer"><span className="row-main"><span className="row-label">Buscar en YouTube Music</span></span><Icon name="arrowRight" size={18} /></a>}
@@ -199,6 +194,8 @@ export function MediaDetail({ item, onClose }: { item: MediaItem; onClose: () =>
         </button>
       </div>
 
+      <PlaylistPicker song={picking ? m : null} onClose={() => setPicking(false)} />
+      <CoverViewer src={viewCover ? m.cover ?? null : null} alt={m.title} onClose={() => setViewCover(false)} />
       <button type="button" className="btn btn-ghost danger-text" onClick={async () => { if (await confirm({ title: '¿Quitar de la biblioteca?', confirmLabel: 'Quitar', danger: true })) { await deleteMedia(m.id); onClose(); } }}>Quitar</button>
     </div>
   );

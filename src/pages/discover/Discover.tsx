@@ -1,4 +1,5 @@
-import { ytAutoAdd } from '@/services/youtube';
+import { ytAutoAdd, ytConnected, ytTaste } from '@/services/youtube';
+import { PlaylistPicker } from '@/components/media/PlaylistPicker';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Empty, Icon, NavBar, useFeedback } from '@/components/ui';
@@ -7,7 +8,7 @@ import { ForYouSection, type RecKind } from './ForYou';
 import { useStore } from '@/hooks/useData';
 import { store } from '@/database/store';
 import { aiAvailable, recommend } from '@/services/ai';
-import { newMedia, saveMedia, searchMusic, tasteProfile, type MusicHit } from '@/services/media';
+import { newMedia, saveMedia, searchMusic, tasteProfile, ytMusicSearch, type MusicHit } from '@/services/media';
 import type { MediaStatus } from '@/types';
 import { cx } from '@/utils/misc';
 
@@ -29,7 +30,9 @@ export default function Discover() {
   const tab = params.get('tab') ?? 'music';
 
   const known = useMemo(() => new Set(snap.media.filter((m) => m.mediaType === 'music').map((m) => `${m.title}|${m.creator}`.toLowerCase())), [snap.media]);
-  const hasTaste = genres.length > 0 || snap.media.some((m) => m.mediaType === 'music');
+  const yt = ytConnected();
+  const hasTaste = yt || genres.length > 0 || snap.media.some((m) => m.mediaType === 'music');
+  const [picking, setPicking] = useState<Rec | null>(null);
 
   const load = async () => {
     setBusy(true);
@@ -37,7 +40,13 @@ export default function Discover() {
     try {
       let out: Rec[] = [];
       if (aiAvailable()) {
-        const profile = tasteProfile(snap.media, genres.length ? [`géneros preferidos: ${genres.join(', ')}`] : []);
+        const extra = genres.length ? [`géneros preferidos: ${genres.join(', ')}`] : [];
+        if (yt) {
+          // Lo que escuchás en YouTube Music (me gusta y tus listas) es la base principal.
+          const heard = await ytTaste().catch(() => []);
+          if (heard.length) extra.unshift(`Escucha en YouTube Music (base principal para recomendar; no repitas estas): ${heard.slice(0, 60).map((h) => `${h.title}${h.artist ? ` — ${h.artist}` : ''}`).join('; ')}`);
+        }
+        const profile = tasteProfile(snap.media, extra);
         const items = await recommend('music', profile);
         const enriched = await Promise.all(
           items.slice(0, 8).map(async (it) => {
@@ -91,7 +100,7 @@ export default function Discover() {
       </div>
       {tab !== 'music' ? <ForYouSection key={tab} kind={tab as RecKind} /> : (<>
       <div className="cta-row mt-4">
-        <p>{aiAvailable() ? 'Música que aprende de lo que guardás y descartás.' : 'Música según tus artistas y géneros.'}</p>
+        <p>{aiAvailable() ? (yt ? 'A partir de lo que escuchás en YouTube Music y lo que guardás acá.' : 'Música que aprende de lo que guardás y descartás.') : 'Música según tus artistas y géneros.'}</p>
         <button type="button" className="cta" onClick={() => void load()} disabled={busy || !hasTaste}>{busy ? <span className="spinner" /> : 'Otra tanda'} <Icon name="arrowRight" size={22} strokeWidth={1.4} className="arrow" /></button>
       </div>
 
@@ -131,6 +140,8 @@ export default function Discover() {
                     <div className="rec-actions">
                       {r.previewUrl && <PreviewButton url={r.previewUrl} />}
                       <button type="button" className="btn btn-secondary btn-sm" onClick={() => void act(r, 'later')}>Para escuchar</button>
+                      <a className="icon-btn" aria-label="Abrir en YouTube Music" href={ytMusicSearch(r.title, r.creator)} target="_blank" rel="noopener noreferrer"><Icon name="play" size={18} /></a>
+                      {yt && <button type="button" className="icon-btn" aria-label="Agregar a una lista de YouTube Music" onClick={() => setPicking(r)}><Icon name="plus" size={19} /></button>}
                       <button type="button" className="icon-btn" aria-label="Me gusta" onClick={() => void act(r, 'liked')}><Icon name="heart" size={19} /></button>
                       <button type="button" className="icon-btn" aria-label="No me interesa" onClick={() => void act(r, 'dismissed')}><Icon name="thumbDown" size={19} /></button>
                     </div>
@@ -141,7 +152,8 @@ export default function Discover() {
           })}
         </ul>
       )}
-      <p className="group-foot mt-6">Vistas previas de 30 s vía iTunes. Para escuchar completo, abrí cada canción en YouTube Music desde la <Link to="/biblioteca">Biblioteca</Link>.</p>
+      <PlaylistPicker song={picking ? { title: picking.title, creator: picking.creator } : null} onClose={() => setPicking(null)} />
+      <p className="group-foot mt-6">Vistas previas de 30 s vía iTunes. ▶ abre la canción completa en YouTube Music{yt ? ' y + la suma a la lista que elijas' : <>. Conectá tu cuenta en <Link to="/ajustes#youtube">Ajustes → YouTube Music</Link> para recomendaciones a partir de lo que escuchás</>}.</p>
       </>)}
     </main>
   );

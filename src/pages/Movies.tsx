@@ -1,9 +1,10 @@
+import { AiSummary, CoverViewer, Synopsis, Trailer } from '@/components/media/About';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { BottomSheet, Icon, NavBar, useFeedback } from '@/components/ui';
 import { useStore } from '@/hooks/useData';
 import { aiAvailable } from '@/services/ai';
-import { deleteMedia } from '@/services/media';
+import { deleteMedia, saveMedia } from '@/services/media';
 import {
   hitFromItem, MOVIE_GENRES, recommendMovies, saveMovie, searchMovies, whereToWatch,
   type MovieHit, type WhereToWatch,
@@ -231,6 +232,7 @@ function MovieDetail({ hit, items, onClose }: { hit: MovieHit; items: MediaItem[
   const [date, setDate] = useState(saved?.watchedOn ?? todayISO());
   const [review, setReview] = useState(saved?.notes ?? '');
   const [logging, setLogging] = useState(saved?.status === 'watched');
+  const [viewPoster, setViewPoster] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -246,7 +248,7 @@ function MovieDetail({ hit, items, onClose }: { hit: MovieHit; items: MediaItem[
   return (
     <div className="movie-detail">
       <div className="movie-hero">
-        <Poster src={hit.poster} title={hit.title} />
+        {hit.poster ? <button type="button" className="cover-btn" onClick={() => setViewPoster(true)} aria-label="Ver portada"><Poster src={hit.poster} title={hit.title} /></button> : <Poster src={hit.poster} title={hit.title} />}
         <div className="grow">
           <h2 className="movie-title">{hit.title}</h2>
           <p className="movie-meta">{[hit.year, hit.director, hit.genres.slice(0, 2).join(', ')].filter(Boolean).join(' · ')}</p>
@@ -255,7 +257,14 @@ function MovieDetail({ hit, items, onClose }: { hit: MovieHit; items: MediaItem[
         </div>
       </div>
 
-      {hit.synopsis && <p className="movie-synopsis">{hit.synopsis}</p>}
+      <Synopsis text={hit.synopsis} />
+      <AiSummary
+        kind="película" title={hit.originalTitle || hit.title} creator={hit.director ?? ''} year={hit.year} synopsis={hit.synopsis}
+        cached={{ summary: saved?.meta?.summary, forWho: saved?.meta?.forWho }}
+        onSave={(r) => { if (saved) void saveMedia({ ...saved, meta: { ...(saved.meta ?? {}), summary: r.summary, ...(r.forWho ? { forWho: r.forWho } : {}) } }); }}
+      />
+      <Trailer title={hit.originalTitle || hit.title} year={hit.year} tmdbId={hit.tmdbId} />
+      <CoverViewer src={viewPoster ? hit.poster : null} alt={hit.title} onClose={() => setViewPoster(false)} />
 
       <section className="movie-where">
         <h3>Dónde verla</h3>

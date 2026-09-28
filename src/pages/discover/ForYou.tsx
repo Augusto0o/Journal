@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Icon, useFeedback } from '@/components/ui';
+import { BottomSheet, Icon, useFeedback } from '@/components/ui';
+import { BookAbout, CoverViewer } from '@/components/media/About';
 import { useStore } from '@/hooks/useData';
 import { aiAvailable, recommend, type RecItem } from '@/services/ai';
 import { newMedia, saveMedia, searchBooks, tasteProfile } from '@/services/media';
@@ -35,6 +36,14 @@ export function ForYouSection({ kind }: { kind: RecKind }) {
   const [busy, setBusy] = useState(false);
   const [subject, setSubject] = useState(SUBJECTS[0]);
   const ai = aiAvailable();
+  const [peek, setPeek] = useState<BookRec | null>(null);
+  const [peekMeta, setPeekMeta] = useState<Record<string, string> | undefined>(undefined);
+  const [peekCover, setPeekCover] = useState<string | null>(null);
+  const [viewCover, setViewCover] = useState(false);
+  useEffect(() => {
+    setPeekMeta(undefined);
+    setPeekCover(peek?.cover ?? null);
+  }, [peek]);
 
   const load = async (subj = subject) => {
     setBusy(true);
@@ -74,7 +83,7 @@ export function ForYouSection({ kind }: { kind: RecKind }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind]);
 
-  const addBook = async (it: BookRec) => {
+  const addBook = async (it: BookRec, meta?: Record<string, string>) => {
     let cover = it.cover ?? null;
     if (!cover) {
       try {
@@ -83,7 +92,7 @@ export function ForYouSection({ kind }: { kind: RecKind }) {
         /* sin portada */
       }
     }
-    await saveMedia(newMedia('book', { title: it.title, creator: it.creator, genre: it.genre ?? null, cover, notes: it.why ?? '' }));
+    await saveMedia(newMedia('book', { title: it.title, creator: it.creator, genre: it.genre ?? null, cover, notes: it.why ?? '', ...(meta ? { meta } : {}) }));
     toast('Agregado a Para leer');
   };
 
@@ -101,8 +110,8 @@ export function ForYouSection({ kind }: { kind: RecKind }) {
         <div className="list">
           {items.map((it, i) => (
             <div key={`${it.title}-${i}`} className="rec-item">
-              {kind === 'books' ? <Cover src={it.cover} kind="book" alt={it.title} /> : <span className="rec-num num">{i + 1}</span>}
-              <div className="grow">
+              {kind === 'books' ? <button type="button" className="cover-btn" onClick={() => setPeek(it)} aria-label={`Ver ${it.title}`}><Cover src={it.cover} kind="book" alt={it.title} /></button> : <span className="rec-num num">{i + 1}</span>}
+              <div className="grow" onClick={kind === 'books' ? () => setPeek(it) : undefined} role={kind === 'books' ? 'button' : undefined}>
                 <p className="media-title">{it.title}</p>
                 {it.creator && <p className="row-sub">{it.creator}{it.year ? ` · ${it.year}` : it.genre ? ` · ${it.genre}` : ''}</p>}
                 {it.why && <p className="rec-why">{it.why}</p>}
@@ -114,6 +123,23 @@ export function ForYouSection({ kind }: { kind: RecKind }) {
           ))}
         </div>
       )}
+      <BottomSheet open={!!peek} onClose={() => setPeek(null)} title={peek?.title ?? 'Libro'} hideTitle>
+        {peek && (
+          <div className="stack-lg">
+            <div className="media-hero">
+              <button type="button" className="cover-btn" onClick={() => peekCover && setViewCover(true)} aria-label="Ver portada"><Cover src={peekCover} kind="book" alt={peek.title} /></button>
+              <div className="grow">
+                <p className="media-hero-title">{peek.title}</p>
+                <p className="media-hero-sub">{[peek.creator, peek.year].filter(Boolean).join(' · ')}</p>
+                {peek.why && <p className="rec-why">{peek.why}</p>}
+              </div>
+            </div>
+            <BookAbout key={peek.title} title={peek.title} creator={peek.creator} meta={peekMeta} cover={peekCover} onPatch={(p) => { setPeekMeta(p.meta); if (p.cover) setPeekCover(p.cover); }} />
+            <button type="button" className="btn btn-primary" onClick={() => { void addBook({ ...peek, cover: peekCover }, peekMeta); setPeek(null); }}><Icon name="plus" size={18} /> Agregar a Para leer</button>
+          </div>
+        )}
+      </BottomSheet>
+      <CoverViewer src={viewCover ? peekCover : null} alt={peek?.title ?? ''} onClose={() => setViewCover(false)} />
       {!busy && (
         <button type="button" className="btn btn-secondary btn-block mt-4" onClick={() => void load()}>
           <Icon name="refresh" size={16} /> Otras recomendaciones
