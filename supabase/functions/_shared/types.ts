@@ -49,6 +49,11 @@ export interface Note extends BaseRecord {
 export interface Folder extends BaseRecord {
   kind: 'folder';
   name: string;
+  /** 'media' = lista de videos/enlaces guardados (Biblioteca); si falta, es una carpeta de notas. */
+  scope?: 'notes' | 'media';
+  /** Lista vinculada a una playlist de YouTube: los videos de YouTube que entran acá también van allá. */
+  ytPlaylistId?: string | null;
+  ytPlaylistTitle?: string | null;
 }
 
 /** 0 = ninguna, 1 = baja, 2 = media, 3 = alta */
@@ -232,6 +237,8 @@ export interface MediaItem extends BaseRecord {
   plays?: number;
   meta?: Record<string, string>;
   links?: string[];
+  /** Lista de la Biblioteca a la que pertenece (Folder con scope 'media'). */
+  listId?: string | null;
 }
 
 export type AnyRecord = JournalEntry | Note | Folder | Task | Reminder | Habit | FocusSession | EnglishCard | EnglishLog | MindMap | DocFile | MediaItem;

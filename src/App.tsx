@@ -18,6 +18,7 @@ const Movies = lazy(() => import('@/pages/Movies'));
 const EntryEditor = lazy(() => import('@/pages/EntryEditor'));
 const Reader = lazy(() => import('@/pages/Reader'));
 const Library = lazy(() => import('@/pages/Library'));
+const ListPage = lazy(() => import('@/pages/library/ListPage'));
 const Habits = lazy(() => import('@/pages/Habits'));
 const HabitDetail = lazy(() => import('@/pages/HabitDetail'));
 const Pomodoro = lazy(() => import('@/pages/Pomodoro'));
@@ -154,6 +155,7 @@ function Shell() {
               <Route path="/ajustes" element={<Settings />} />
               <Route path="/journal/:id" element={<EntryEditor kind="journal" />} />
               <Route path="/journal/:id/leer" element={<Reader kind="journal" />} />
+              <Route path="/biblioteca/lista/:id" element={<ListPage />} />
               <Route path="/biblioteca/nota/:id" element={<EntryEditor kind="note" />} />
               <Route path="/biblioteca/nota/:id/leer" element={<Reader kind="note" />} />
               <Route path="/habitos" element={<Habits />} />
