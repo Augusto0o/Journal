@@ -117,7 +117,18 @@ function SettingsRedirect() {
   return <Navigate to={`/ajustes${OLD_SETTINGS[part] ? `#${OLD_SETTINGS[part]}` : ''}`} replace />;
 }
 
+/** Aviso de versión nueva cuando estás escribiendo (si no, la app se recarga sola). */
+function useUpdateNotice() {
+  const { toast } = useFeedback();
+  useEffect(() => {
+    const on = () => toast('Hay una versión nueva de la app', { action: { label: 'Actualizar', onClick: () => location.reload() } });
+    window.addEventListener('pos-update-ready', on);
+    return () => window.removeEventListener('pos-update-ready', on);
+  }, [toast]);
+}
+
 function Shell() {
+  useUpdateNotice();
   const snap = useStore();
   const [settings] = useSettings();
   const { pathname } = useLocation();

@@ -12,6 +12,7 @@ import './styles/screens.css';
 import './styles/sections.css';
 import './styles/v3.css';
 import '@/services/player';
+import { startUpdater } from '@/services/updater';
 
 // Sin zoom en la app (iOS ignora user-scalable en algunos casos). El dibujo tiene su propio zoom.
 for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
@@ -39,8 +40,4 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('SW no registrado', err));
-  });
-}
+if (import.meta.env.PROD) startUpdater();
