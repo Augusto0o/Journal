@@ -156,7 +156,7 @@ export default function EntryEditor({ kind }: { kind: 'journal' | 'note' }) {
   };
 
   const paper = (meta.paper ?? 'plain') as PaperStyle;
-  const folders = snap.folder;
+  const folders = snap.folder.filter((f) => f.scope !== 'media');
 
   return (
     <main className={cx('editor-page', focused && 'is-focused')}>

@@ -1649,3 +1649,24 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .cover-viewer img { max-width: 100%; max-height: 82vh; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.6); animation: cover-in 280ms var(--ease-out) both; }
 @keyframes cover-in { from { transform: scale(0.92); opacity: 0; } }
 @keyframes fade-in { from { opacity: 0; } }
+
+/* ---------- Listas de la Biblioteca ---------- */
+.block-head .link-btn { margin-left: auto; text-decoration: none; font-size: var(--t-footnote); font-weight: 500; }
+.lists-strip { display: grid; grid-auto-flow: column; grid-auto-columns: 42%; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 calc(var(--gutter) * -1); padding: 2px var(--gutter) 4px; scrollbar-width: none; }
+.lists-strip::-webkit-scrollbar { display: none; }
+.list-card { scroll-snap-align: start; display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: var(--r-card); background: var(--surface); color: var(--text); text-decoration: none; transition: transform var(--d-press) var(--ease-out); }
+.list-card:active { transform: var(--press); }
+.list-card-thumbs { display: flex; align-items: center; justify-content: center; height: 72px; margin-bottom: 4px; border-radius: 12px; overflow: hidden; background: var(--surface-2); color: var(--text-3); }
+.list-card-thumbs img { flex: 1; min-width: 0; height: 100%; object-fit: cover; }
+.list-card .card-title { margin-top: 0; }
+.list-empty { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 14px; border-radius: var(--r-card); border: 1px dashed var(--line-strong); color: var(--text-2); text-align: left; font-size: var(--t-sub); line-height: 1.45; }
+.list-page .btn-block { margin-top: var(--s3); gap: 8px; }
+.list-items { list-style: none; margin: var(--s4) 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.list-item { display: flex; align-items: center; gap: 4px; padding: 8px; border-radius: var(--r-card); background: var(--surface); }
+.list-item-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; color: var(--text); }
+.list-item-main .grow { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.list-thumb { position: relative; width: 96px; aspect-ratio: 16 / 10; flex: none; border-radius: 10px; overflow: hidden; display: grid; place-items: center; background: var(--surface-2); color: var(--text-3); }
+.list-thumb.is-instagram, .list-thumb.is-tiktok { aspect-ratio: 4 / 5; width: 64px; }
+.list-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.list-thumb-play { position: absolute; right: 5px; bottom: 5px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.65); color: #fff; }
+.list-note { color: var(--text-3); font-size: var(--t-footnote); }

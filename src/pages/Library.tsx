@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { BottomSheet, Empty, Icon, IconButton, type IconName } from '@/components/ui';
 import { AddBook, AddLink, Cover, MediaDetail, SearchMusic } from './library/MediaTabs';
 import { useArtwork } from '@/pages/discover/Artwork';
+import { mediaLists, saveList } from '@/services/lists';
 import { useStore, useToday } from '@/hooks/useData';
 import { TopSearch } from '@/components/navigation/TopSearch';
 import type { MediaItem } from '@/types';
@@ -29,7 +30,10 @@ export default function Library() {
   const media = snap.media.filter((m) => m.status !== 'dismissed').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const reading = media.filter((m) => m.mediaType === 'book' && m.status === 'reading');
   const toRead = media.filter((m) => m.mediaType === 'book' && m.status === 'want');
-  const toWatch = media.filter((m) => m.mediaType === 'video' && !DONE.has(m.status));
+  // Lo que está en una lista se ve en su lista, no mezclado en los estantes.
+  const toWatch = media.filter((m) => m.mediaType === 'video' && !m.listId && !DONE.has(m.status));
+  const lists = mediaLists(snap.folder);
+  const [newList, setNewList] = useState<string | null>(null);
   const moviesToWatch = media.filter((m) => m.mediaType === 'movie' && !DONE.has(m.status));
   const toListen = media.filter((m) => m.mediaType === 'music' && !DONE.has(m.status));
   const done = media.filter((m) => DONE.has(m.status));
@@ -69,6 +73,42 @@ export default function Library() {
           <span className="card-title clamp-2">{art?.title ?? 'Una obra con su historia'}</span>
         </Link>
       </div>
+
+      <section className="block">
+        <div className="block-head">
+          <h2>Listas</h2>
+          <button type="button" className="link-btn" onClick={() => setNewList('')}>Nueva</button>
+        </div>
+        {lists.length ? (
+          <div className="lists-strip">
+            {lists.map((l) => {
+              const inList = snap.media.filter((m) => m.listId === l.id && m.status !== 'dismissed');
+              const thumbs = inList.filter((m) => m.cover).slice(0, 3);
+              return (
+                <Link key={l.id} to={`/biblioteca/lista/${l.id}`} className="list-card">
+                  <span className="list-card-thumbs">
+                    {thumbs.length ? thumbs.map((m) => <img key={m.id} src={m.cover!} alt="" loading="lazy" />) : <Icon name="folder" size={22} />}
+                  </span>
+                  <span className="card-title clamp-2">{l.name}</span>
+                  <span className="card-kicker">{inList.length} {inList.length === 1 ? 'guardado' : 'guardados'}{l.ytPlaylistId ? ' · YouTube' : ''}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <button type="button" className="list-empty" onClick={() => setNewList('')}>
+            <Icon name="plus" size={18} />
+            <span>Creá listas como «Videos de IA» o «Recomendaciones» y guardá ahí videos de YouTube, reels de Instagram o cualquier enlace.</span>
+          </button>
+        )}
+      </section>
+
+      <BottomSheet open={newList !== null} onClose={() => setNewList(null)} title="Nueva lista">
+        <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (!newList?.trim()) return; const l = await saveList(newList.trim()); setNewList(null); navigate(`/biblioteca/lista/${l.id}`); }}>
+          <input className="input" placeholder="Videos de IA, Música, Recomendaciones…" value={newList ?? ''} onChange={(e) => setNewList(e.target.value)} aria-label="Nombre" data-autofocus />
+          <button type="submit" className="btn btn-primary" disabled={!newList?.trim()}>Crear</button>
+        </form>
+      </BottomSheet>
 
       {!media.length && (
         <Empty title="Tu estante está vacío" message="Guardá libros, videos y música para después. Tocá + para agregar, o compartí un enlace desde otra app." />

@@ -14,6 +14,8 @@ import { cx } from '@/utils/misc';
 import { ytAutoAdd, ytConnected } from '@/services/youtube';
 import { PlaylistPicker } from '@/components/media/PlaylistPicker';
 import { BookAbout, CoverViewer } from '@/components/media/About';
+import { MoveSheet } from './ListPage';
+import { mediaLists } from '@/services/lists';
 import { claimPlayback, isReleasing, releaseMedia } from '@/services/player';
 
 export function Cover({ src, kind, alt }: { src?: string | null; kind: 'book' | 'video' | 'music' | 'movie'; alt: string }) {
@@ -121,6 +123,7 @@ export function MediaDetail({ item, onClose }: { item: MediaItem; onClose: () =>
   const player = useRef<HTMLAudioElement>(null);
   const [picking, setPicking] = useState(false);
   const [viewCover, setViewCover] = useState(false);
+  const [moving, setMoving] = useState(false);
   useEffect(() => {
     const el = player.current;
     return () => {
@@ -170,6 +173,12 @@ export function MediaDetail({ item, onClose }: { item: MediaItem; onClose: () =>
 
       <div className="group-body">
         {m.url && <a className="row" href={m.url} target="_blank" rel="noopener noreferrer"><span className="row-main"><span className="row-label">{m.mediaType === 'video' ? 'Ver en YouTube' : m.mediaType === 'book' ? 'Ver ficha' : 'Abrir enlace'}</span></span><Icon name="arrowRight" size={18} /></a>}
+        {(m.mediaType === 'video' || m.mediaType === 'music') && (
+          <button type="button" className="row" onClick={() => setMoving(true)}>
+            <span className="row-main"><span className="row-label">Lista</span><span className="row-sub">{mediaLists(snap.folder).find((l) => l.id === m.listId)?.name ?? 'Sin lista'}</span></span>
+            <Icon name="chevronRight" size={18} />
+          </button>
+        )}
         {m.mediaType === 'music' && ytConnected() && (
           <button type="button" className="row is-accent" onClick={() => setPicking(true)}>
             <span className="row-main"><span className="row-label">Agregar a una lista de YouTube Music</span><span className="row-sub">Elegís en cuál</span></span>
@@ -195,6 +204,7 @@ export function MediaDetail({ item, onClose }: { item: MediaItem; onClose: () =>
       </div>
 
       <PlaylistPicker song={picking ? m : null} onClose={() => setPicking(false)} />
+      <MoveSheet item={moving ? m : null} lists={mediaLists(snap.folder)} onClose={() => setMoving(false)} />
       <CoverViewer src={viewCover ? m.cover ?? null : null} alt={m.title} onClose={() => setViewCover(false)} />
       <button type="button" className="btn btn-ghost danger-text" onClick={async () => { if (await confirm({ title: '¿Quitar de la biblioteca?', confirmLabel: 'Quitar', danger: true })) { await deleteMedia(m.id); onClose(); } }}>Quitar</button>
     </div>

@@ -47,7 +47,8 @@ export default function Notebook() {
   const [sheet, setSheet] = useState<null | 'folders' | 'folder'>(null);
   const newMenu = useNewMenu();
   const [folderName, setFolderName] = useState('');
-  const folder = folderId ? snap.folder.find((f) => f.id === folderId) : null;
+  const noteFolders = snap.folder.filter((f) => f.scope !== 'media');
+  const folder = folderId ? noteFolders.find((f) => f.id === folderId) : null;
 
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [];
@@ -170,14 +171,14 @@ export default function Notebook() {
 
       {!sub && items.length > 0 && (
         <div className="nb-foot">
-          <button type="button" onClick={() => setSheet('folders')}><Icon name="folder" size={16} /> Carpetas{snap.folder.length ? ` · ${snap.folder.length}` : ''}</button>
+          <button type="button" onClick={() => setSheet('folders')}><Icon name="folder" size={16} /> Carpetas{noteFolders.length ? ` · ${noteFolders.length}` : ''}</button>
           {archivedCount > 0 && <button type="button" onClick={() => setParams({ archivo: '1' })}><Icon name="archive" size={16} /> Archivo · {archivedCount}</button>}
         </div>
       )}
 
       <BottomSheet open={sheet === 'folders'} onClose={() => setSheet(null)} title="Carpetas">
         <div className="group-body">
-          {[...snap.folder].sort((a, b) => a.name.localeCompare(b.name, 'es')).map((f) => (
+          {[...noteFolders].sort((a, b) => a.name.localeCompare(b.name, 'es')).map((f) => (
             <SheetAction key={f.id} icon={<Icon name="folder" size={20} />} label={f.name} hint={String(snap.note.filter((n) => n.folderId === f.id && !n.isArchived).length)} onClick={() => { setSheet(null); setParams({ carpeta: f.id }); }} />
           ))}
         </div>

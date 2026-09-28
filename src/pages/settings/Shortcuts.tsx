@@ -117,6 +117,15 @@ export default function ShortcutsSettings({ embedded }: { embedded?: boolean } =
           <li>Acción <b>Mostrar notificación</b> con el <b>Contenido de la URL</b>.</li>
           <li>Listo: en YouTube tocá <b>Compartir → Más → Guardar en Personal OS</b>. Un video va a <b>Biblioteca · Para ver</b>, una canción o playlist de YouTube Music a <b>Para escuchar</b>, con título y portada. Otros enlaces y textos se ordenan solos.</li>
         </Recipe>
+        <Recipe title="Guardar en lista" when="Videos de YouTube, reels de Instagram, TikToks o cualquier enlace, separados por lista">
+          <li>Atajos → <b>+</b> → nombre «Guardar en lista». En <b>ⓘ Detalles</b> activá <b>Mostrar en la hoja de Compartir</b>; en «Recibe» dejá <b>URL</b>, <b>Texto</b> y <b>Páginas web de Safari</b>.</li>
+          <li><b>Obtener contenido de URL</b>: la dirección con token y al final <code>&amp;listas=1</code>. Método <b>GET</b>. Devuelve tus listas, una por línea.</li>
+          <li><b>Dividir texto</b>: el Contenido de la URL, por <b>Saltos de línea</b>.</li>
+          <li><b>Elegir de la lista</b>: el Texto dividido. En «Mensaje» poné «¿En qué lista?».</li>
+          <li><b>Obtener contenido de URL</b>: la dirección con token (sin <code>&amp;listas=1</code>), método <b>POST</b>, sin encabezados. Cuerpo <b>JSON</b> con dos campos de texto: <code>text</code> = <b>Entrada del atajo</b> y <code>list</code> = <b>Elemento elegido</b>.</li>
+          <li><b>Mostrar notificación</b> con el Contenido de la URL.</li>
+          <li>Las listas se crean en Biblioteca → Listas → Nueva. Si una lista está vinculada a una playlist de YouTube, los videos de YouTube que guardes ahí se suman también a esa playlist.</li>
+        </Recipe>
         <Recipe title="POS Capturar" when="Siri, botón de Acción o pantalla bloqueada">
           <li>Atajos → <b>+</b> → nombre «POS Capturar».</li>
           <li>Acción <b>Pedir entrada</b> (Texto), pregunta «¿Qué anoto?».</li>
